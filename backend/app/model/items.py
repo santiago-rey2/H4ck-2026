@@ -12,7 +12,6 @@ class ItemBase(SQLModel):
     format: Optional[str] = None
 
 class Item(ItemBase, Auditable, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
     categories: List["Category"] = Relationship(
         back_populates="items",
         link_model=ItemCategoryLink
@@ -25,7 +24,6 @@ class ItemCreate(ItemBase):
     category_ids: List[int] = []
 
 class ItemResponse(ItemBase, Auditable):
-    id: int
     categories: List["CategoryResponse"] = []
 
 from app.model.category import Category, CategoryResponse

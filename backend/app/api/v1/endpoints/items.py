@@ -15,6 +15,9 @@ SessionDep = Annotated[Session, Depends(get_session)]
 def create_item(item_in: ItemCreate, db: SessionDep):
     return item_service.create_with_categories(db, obj_in=item_in)
 
+@router.get("/all", response_model=list[ItemResponse])
+def read_items(db: SessionDep, skip: int = 0, limit: int = 100):
+    return item_service.get_multi(db, skip=skip, limit=limit)
 
 @router.get(
     "/{item_id}",
@@ -29,12 +32,6 @@ def read_item(
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     return item
-
-
-@router.get("/all", response_model=list[ItemResponse])
-def read_items(db: SessionDep, skip: int = 0, limit: int = 100):
-    return item_service.get_multi(db, skip=skip, limit=limit)
-
 
 @router.get("/by-format")
 def get_items_by_format(

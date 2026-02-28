@@ -1,37 +1,32 @@
-##############################
-# Step: Build the base image with dependencies
-##############################
+FROM oven/bun:1-alpine AS base
 
-FROM oven/bun:canary-alpine as base
-RUN addgroup react && adduser -S -G react react
-USER react
 WORKDIR /app
-COPY  --chown=react package.json bun.lock ./
+
+COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile
 
-##############################
-# Step 2: Development image
-##############################
+FROM base AS dev
 
-FROM base as dev
-COPY --chown=react . .
+COPY . .
+
 EXPOSE 5173
-CMD ["bun","run","dev","--host"]
 
-##############################
-# Step 3: Production build image
-##############################
+CMD ["bun", "run", "dev", "--host", "0.0.0.0", "--port", "5173"]
 
-FROM base as build
-COPY --chown=react . .
+FROM base AS build
+
+ARG VITE_BACKEND_URL=http://localhost:8000
+ENV VITE_BACKEND_URL=${VITE_BACKEND_URL}
+
+COPY . .
+
 RUN bun run build
 
-##############################
-# Step 4: Production image
-##############################
+FROM nginx:alpine AS prod
 
-FROM nginx:alpine as pro
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
+
 EXPOSE 80
+
 CMD ["nginx", "-g", "daemon off;"]

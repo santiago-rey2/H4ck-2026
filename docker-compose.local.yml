@@ -2,28 +2,39 @@ services:
   backend:
     command: uv run fastapi dev app/main.py --host 0.0.0.0 --port 8000
     volumes:
-      - ./backend:/app
+      - ./backend/app:/app/app
     environment:
-      - ENVIRONMENT=local
-      - DEBUG=True
-      - DATABASE_URL=${DB_URL}
+      ENVIRONMENT: local
+      DEBUG: "True"
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_SERVER: db
     ports:
       - "8000:8000"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   frontend:
+    image: h4ck-2026-frontend-dev
     build:
       target: dev
     volumes:
       - ./frontend:/app
-      - /app/node_modules
+      - frontend-node-modules:/app/node_modules
     environment:
-      - VITE_API_URL=http://localhost:8000
+      VITE_BACKEND_URL: http://localhost:8000
     ports:
       - "5173:5173"
     depends_on:
-      - backend
+      backend:
+        condition: service_started
+
   db:
     ports:
       - "5432:5432"
+
+volumes:
+  frontend-node-modules:

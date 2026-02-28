@@ -1,16 +1,20 @@
 import { LogOut } from "lucide-react";
 import { motion } from "motion/react";
 import { useNavigate } from "react-router";
+import { useMotionPreferences } from "@/app/motion/useMotionPreferences";
 import { useLogout, useUser } from "../../user/hooks";
 import { AuthButton } from "./AuthButton";
+
+type AuthProvider = "google" | "github";
 
 export function SidebarFooter() {
 	const { data: user } = useUser();
 	const { mutate: logout } = useLogout();
+	const { motionEnabled } = useMotionPreferences();
 
 	const navigate = useNavigate();
 
-	const handleLogin = (provider: any) => {
+	const handleLogin = (provider: AuthProvider) => {
 		window.location.href = `https://localhost:8443/oauth2/authorization/${provider}`;
 	};
 
@@ -52,8 +56,8 @@ export function SidebarFooter() {
 						className={`w-full flex items-center space-x-3 p-2 rounded-lg transition-colors ${
 							getProviderColors().bg
 						} ${getProviderColors().hover} ${getProviderColors().text}`}
-						whileHover={{ scale: 1.02 }}
-						whileTap={{ scale: 0.98 }}
+						whileHover={motionEnabled ? { scale: 1.015 } : undefined}
+						whileTap={motionEnabled ? { scale: 0.99 } : undefined}
 					>
 						<LogOut size={18} />
 						<span className="text-sm">Log Out</span>

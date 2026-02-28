@@ -1,50 +1,31 @@
 import { AnimatePresence, motion } from "motion/react";
+import type { ReactNode } from "react";
+import { useMotionPreferences } from "@/app/motion/useMotionPreferences";
+import { getPageVariants } from "@/app/motion/variants";
 
-export function PageTransition({ children, pageKey, iconPosition }: any) {
-	const centerX = typeof window !== "undefined" ? window.innerWidth / 2 : 0;
-	const centerY = typeof window !== "undefined" ? window.innerHeight / 2 : 0;
+interface PageTransitionProps {
+	children: ReactNode;
+	pageKey: string;
+	className?: string;
+}
+
+export function PageTransition({
+	children,
+	pageKey,
+	className = "w-full h-full",
+}: PageTransitionProps) {
+	const { prefersReducedMotion } = useMotionPreferences();
+	const pageVariants = getPageVariants(prefersReducedMotion);
 
 	return (
-		<AnimatePresence mode="wait">
+		<AnimatePresence mode="wait" initial={false}>
 			<motion.div
 				key={pageKey}
-				initial={
-					iconPosition
-						? {
-								scale: 0,
-								x: iconPosition.x - centerX,
-								y: iconPosition.y - centerY,
-								opacity: 0,
-							}
-						: {
-								opacity: 0,
-								scale: 0.9,
-							}
-				}
-				animate={{
-					scale: 1,
-					x: 0,
-					y: 0,
-					opacity: 1,
-				}}
-				exit={
-					iconPosition
-						? {
-								scale: 0,
-								x: iconPosition.x - centerX,
-								y: iconPosition.y - centerY,
-								opacity: 0,
-							}
-						: {
-								opacity: 0,
-								scale: 0.9,
-							}
-				}
-				transition={{
-					duration: 0.4,
-					ease: [0.4, 0, 0.2, 1],
-				}}
-				className="w-full h-full"
+				variants={pageVariants}
+				initial="initial"
+				animate="animate"
+				exit="exit"
+				className={className}
 			>
 				{children}
 			</motion.div>

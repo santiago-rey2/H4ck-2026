@@ -1,4 +1,17 @@
+import type { LucideIcon } from "lucide-react";
 import { motion } from "motion/react";
+import { useMotionPreferences } from "@/app/motion/useMotionPreferences";
+
+type SidebarTileVariant = "navigation" | "action" | "auth";
+
+interface SidebarTileProps {
+	icon: LucideIcon;
+	label: string;
+	isActive?: boolean;
+	variant?: SidebarTileVariant;
+	onClick?: () => void;
+	className?: string;
+}
 
 export function SidebarTile({
 	icon: Icon,
@@ -7,7 +20,9 @@ export function SidebarTile({
 	variant = "navigation",
 	onClick,
 	className = "",
-}: any) {
+}: SidebarTileProps) {
+	const { motionEnabled } = useMotionPreferences();
+
 	const getVariantStyles = () => {
 		switch (variant) {
 			case "navigation":
@@ -27,8 +42,8 @@ export function SidebarTile({
 		<motion.button
 			onClick={onClick}
 			className={`w-full flex items-center space-x-3 p-2 rounded-lg transition-colors ${getVariantStyles()} ${className}`}
-			whileHover={{ scale: 1.02 }}
-			whileTap={{ scale: 0.98 }}
+			whileHover={motionEnabled ? { scale: 1.015 } : undefined}
+			whileTap={motionEnabled ? { scale: 0.99 } : undefined}
 		>
 			<Icon size={18} />
 			<span className="text-sm">{label}</span>

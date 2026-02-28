@@ -154,3 +154,14 @@
 		background: rgba(71, 85, 105, 0.6);
 	}
 }
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.001ms;
+		animation-iteration-count: 1;
+		transition-duration: 0.001ms;
+		scroll-behavior: auto;
+	}
+}

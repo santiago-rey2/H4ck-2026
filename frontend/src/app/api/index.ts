@@ -1,3 +1,23 @@
-import { initNetworkErrorHandler } from "./appFetch";
+export {
+	appFetch,
+	HttpError,
+	initNetworkErrorHandler,
+	isHttpError,
+	setReauthenticationCallback,
+} from "./appFetch";
 
-export default { initNetworkErrorHandler };
+export {
+	createCategory,
+	deleteCategory,
+	getCategories,
+	getCategoryItems,
+} from "./categories.service";
+
+export {
+	createItem,
+	deleteItem,
+	getItemById,
+	getItemLinkPreview,
+	getItemsPage,
+	updateItem,
+} from "./items.service";

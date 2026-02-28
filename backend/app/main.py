@@ -1,26 +1,47 @@
+import logging
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from app.core.database import create_db_and_tables
+from sqlmodel import Session, text, select
+from app.core.database import create_db_and_tables, engine
 from app.api.v1.endpoints import items, categories
 from fastapi.middleware.cors import CORSMiddleware
-from app.scripts.seed import run_seed_if_enabled
+
+from app.model.category import Category
+from app.scripts.load_categories import seed_categories
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("uvicorn")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    create_db_and_tables()
-    run_seed_if_enabled()
+    try:
+        logger.info("Verificando conexión con la base de datos...")
+
+        with Session(engine) as session:
+            session.exec(text("SELECT 1"))
+            create_db_and_tables()
+            category_count = session.exec(select(Category)).first()
+            if not category_count:
+                logger.info("Tabla de categorías vacía. Iniciando carga automática...")
+                seed_categories(session)
+                logger.info("✅ Categorías cargadas exitosamente.")
+            else:
+                logger.info("Categorías detectadas, saltando carga inicial.")
+
+        logger.info("Aplicación lista y operativa.")
+
+    except Exception as e:
+        logger.error(f"ERROR CRÍTICO: {e}")
+        import os
+        os._exit(1)
 
     yield
-    print("Limpiando recursos...")
-
 
 app = FastAPI(title="HackUDC2026", lifespan=lifespan)
 
-origins = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-]
+origins = ["http://localhost:3000", "http://localhost:5173"]
 
 app.add_middleware(
     CORSMiddleware,

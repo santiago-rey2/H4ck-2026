@@ -14,8 +14,23 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     def get(self, db: Session, id: int) -> Optional[ModelType]:
         return db.get(self.model, id)
 
-    def get_multi(self, db: Session, skip: int = 0, limit: int = 100) -> List[ModelType]:
-        statement = select(self.model).where(self.model.active == True).offset(skip).limit(limit)
+    def get_multi(self,db: Session,*,skip: int = 0,limit: int = 100,
+                  options: list = None,criteria: list = None,**filters) -> List[ModelType]:
+        statement = select(self.model).where(self.model.active == True)
+
+        for field, value in filters.items():
+            if value is not None and hasattr(self.model, field):
+                statement = statement.where(getattr(self.model, field) == value)
+
+        if criteria:
+            for condition in criteria:
+                statement = statement.where(condition)
+
+        if options:
+            for option in options:
+                statement = statement.options(option)
+
+        statement = statement.offset(skip).limit(limit)
         return list(db.exec(statement).all())
 
     def create(self, db: Session, obj_in: CreateSchemaType) -> ModelType:

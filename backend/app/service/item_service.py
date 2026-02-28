@@ -75,4 +75,14 @@ class CRUDItem(CRUDBase[Item, ItemCreate, ItemUpdate]):
 
         return grouped
 
+    def get_uncategorized(self, db: Session, skip: int = 0, limit: int = 100) -> list[Item]:
+        statement = (
+            select(Item)
+            .where(Item.active == True)
+            .where(~Item.categories.any())
+            .offset(skip)
+            .limit(limit)
+        )
+        return list(db.exec(statement).all())
+
 item_service = CRUDItem(Item)

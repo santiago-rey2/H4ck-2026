@@ -30,6 +30,9 @@ services:
       DB_NAME: ${DB_NAME}
       DB_PORT: ${DB_PORT:-5432}
       DB_SERVER: db
+      SEED_ENABLED: ${SEED_ENABLED:-true}
+      SEED_MIN_ITEMS: ${SEED_MIN_ITEMS:-100}
+      SEED_RANDOM_SEED: ${SEED_RANDOM_SEED:-2026}
     depends_on:
       db:
         condition: service_healthy

@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     LINK_PREVIEW_YTDLP_SOCKET_TIMEOUT: float = 8.0
     LINK_PREVIEW_YTDLP_ALLOWED_DOMAINS: str = "youtube.com,youtu.be,vimeo.com,twitch.tv,tiktok.com,x.com,twitter.com,instagram.com"
 
+    SEED_ENABLED: bool = False
+    SEED_MIN_ITEMS: int = 100
+    SEED_RANDOM_SEED: int = 2026
+
     # El decorador @computed_field es la CLAVE en Pydantic V2
     @computed_field
     @property

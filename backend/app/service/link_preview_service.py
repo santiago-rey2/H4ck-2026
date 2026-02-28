@@ -26,6 +26,13 @@ ALLOWED_SCHEMES = {"http", "https"}
 MAX_TITLE_LENGTH = 300
 MAX_DESCRIPTION_LENGTH = 2_000
 MAX_SITE_NAME_LENGTH = 120
+CONSENT_GATEWAY_HOSTS = {"consent.google.com", "consent.youtube.com"}
+CONSENT_TITLE_PREFIXES = (
+    "antes de ir a",
+    "before you continue",
+    "avant de continuer",
+    "prima di continuare",
+)
 
 
 @dataclass(slots=True)
@@ -59,6 +66,19 @@ class LinkPreviewService:
         except HTTPException as exc:
             extruct_error = exc
 
+            fallback_url = None
+            if self._is_upstream_404_error(exc):
+                fallback_url = self._build_domain_home_url(normalized_url)
+
+            if fallback_url and fallback_url != normalized_url:
+                try:
+                    final_url, extruct_preview = self._extract_with_extruct(
+                        fallback_url
+                    )
+                    extruct_error = None
+                except HTTPException as fallback_exc:
+                    extruct_error = fallback_exc
+
         ytdlp_preview: dict[str, Optional[str]] = {}
         should_try_ytdlp = self._should_try_ytdlp(
             normalized_url=normalized_url,
@@ -88,6 +108,36 @@ class LinkPreviewService:
             item_id=item_id,
             payload=merged_payload,
             cache_hit=False,
+        )
+
+    @staticmethod
+    def _is_upstream_404_error(exc: HTTPException) -> bool:
+        if exc.status_code != 502:
+            return False
+
+        detail = exc.detail
+        if not isinstance(detail, str):
+            return False
+
+        return "HTTP 404" in detail
+
+    @staticmethod
+    def _build_domain_home_url(url: str) -> Optional[str]:
+        parsed = urlparse(url)
+        if parsed.scheme.lower() not in ALLOWED_SCHEMES:
+            return None
+        if not parsed.netloc:
+            return None
+
+        return urlunparse(
+            (
+                parsed.scheme,
+                parsed.netloc,
+                "/",
+                "",
+                "",
+                "",
+            )
         )
 
     def _extract_with_extruct(self, url: str) -> tuple[str, dict[str, Optional[str]]]:
@@ -140,6 +190,18 @@ class LinkPreviewService:
                 jsonld_data.get("image"),
                 microdata_data.get("image"),
                 rdfa_data.get("image"),
+                html_fallback.get("image"),
+            ),
+            "logo": self._first_non_empty(
+                og_data.get("logo"),
+                jsonld_data.get("logo"),
+                microdata_data.get("logo"),
+                rdfa_data.get("logo"),
+                html_fallback.get("logo"),
+            ),
+            "favicon": self._first_non_empty(
+                html_fallback.get("favicon"),
+                self._build_favicon_fallback_url(final_url),
             ),
             "site_name": self._first_non_empty(
                 og_data.get("site_name"),
@@ -152,7 +214,16 @@ class LinkPreviewService:
         og_url = og_data.get("final_url")
         if og_url:
             final_url = og_url
+            preview["favicon"] = self._first_non_empty(
+                html_fallback.get("favicon"),
+                self._build_favicon_fallback_url(final_url),
+            )
 
+        final_url, preview = self._sanitize_extruct_preview(
+            requested_url=url,
+            extracted_final_url=final_url,
+            preview=preview,
+        )
         return final_url, preview
 
     def _extract_with_ytdlp(self, url: str) -> dict[str, Optional[str]]:
@@ -332,6 +403,11 @@ class LinkPreviewService:
             properties.get("og:image:url"),
             properties.get("og:image"),
         )
+        logo_candidate = self._first_non_empty(
+            properties.get("og:logo:secure_url"),
+            properties.get("og:logo:url"),
+            properties.get("og:logo"),
+        )
 
         return {
             "title": self._normalize_text(properties.get("og:title"), MAX_TITLE_LENGTH),
@@ -340,6 +416,7 @@ class LinkPreviewService:
                 MAX_DESCRIPTION_LENGTH,
             ),
             "image": self._normalize_optional_url(image_candidate, base_url=base_url),
+            "logo": self._normalize_optional_url(logo_candidate, base_url=base_url),
             "site_name": self._normalize_text(
                 properties.get("og:site_name"),
                 MAX_SITE_NAME_LENGTH,
@@ -360,7 +437,11 @@ class LinkPreviewService:
         description = self._find_first_value_by_keys(items, {"description"})
         image = self._find_first_value_by_keys(
             items,
-            {"image", "thumbnail", "thumbnailurl", "logo"},
+            {"image", "thumbnail", "thumbnailurl"},
+        )
+        logo = self._find_first_value_by_keys(
+            items,
+            {"logo", "publisherlogo", "brandlogo"},
         )
         site_name = self._find_first_value_by_keys(
             items,
@@ -378,6 +459,7 @@ class LinkPreviewService:
             "title": self._normalize_text(title, MAX_TITLE_LENGTH),
             "description": self._normalize_text(description, MAX_DESCRIPTION_LENGTH),
             "image": self._normalize_optional_url(image, base_url=base_url),
+            "logo": self._normalize_optional_url(logo, base_url=base_url),
             "site_name": self._normalize_text(site_name, MAX_SITE_NAME_LENGTH),
         }
 
@@ -395,6 +477,7 @@ class LinkPreviewService:
             items,
             ("#image", "/image", "#thumbnail", "/thumbnail"),
         )
+        logo = self._find_first_value_by_key_suffix(items, ("#logo", "/logo"))
         site_name = self._find_first_value_by_key_suffix(
             items, ("#site_name", "/site_name")
         )
@@ -403,6 +486,7 @@ class LinkPreviewService:
             "title": self._normalize_text(title, MAX_TITLE_LENGTH),
             "description": self._normalize_text(description, MAX_DESCRIPTION_LENGTH),
             "image": self._normalize_optional_url(image, base_url=base_url),
+            "logo": self._normalize_optional_url(logo, base_url=base_url),
             "site_name": self._normalize_text(site_name, MAX_SITE_NAME_LENGTH),
         }
 
@@ -419,7 +503,40 @@ class LinkPreviewService:
             "//meta[translate(@name, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='description']/@content"
         )
         meta_image = tree.xpath(
-            "//meta[translate(@name, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='image']/@content"
+            "//meta[translate(@name, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='image' or translate(@property, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='og:image' or translate(@property, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='twitter:image']/@content"
+        )
+        meta_logo = tree.xpath(
+            "//meta[translate(@name, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='logo' or translate(@property, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='og:logo']/@content"
+        )
+
+        icon_candidates: list[str] = []
+        logo_candidates: list[str] = []
+        for link in tree.xpath("//link[@href]"):
+            if not isinstance(link, lxml_html.HtmlElement):
+                continue
+
+            href = self._coerce_text(link.get("href"))
+            if not href:
+                continue
+
+            rel_value = (link.get("rel") or "").strip().lower()
+            if not rel_value:
+                continue
+
+            if "apple-touch-icon" in rel_value:
+                icon_candidates.append(href)
+                logo_candidates.append(href)
+                continue
+
+            if "mask-icon" in rel_value or "logo" in rel_value:
+                logo_candidates.append(href)
+
+            if "icon" in rel_value:
+                icon_candidates.append(href)
+
+        favicon_candidate = self._first_non_empty(
+            *icon_candidates,
+            self._build_favicon_fallback_url(base_url),
         )
 
         return {
@@ -434,30 +551,145 @@ class LinkPreviewService:
                 self._first_non_empty(*meta_image),
                 base_url=base_url,
             ),
+            "logo": self._normalize_optional_url(
+                self._first_non_empty(*meta_logo, *logo_candidates),
+                base_url=base_url,
+            ),
+            "favicon": self._normalize_optional_url(
+                favicon_candidate,
+                base_url=base_url,
+            ),
         }
+
+    def _build_favicon_fallback_url(self, base_url: str) -> Optional[str]:
+        parsed = urlparse(base_url)
+        if parsed.scheme.lower() not in ALLOWED_SCHEMES:
+            return None
+        if not parsed.netloc:
+            return None
+
+        return urlunparse(
+            (
+                parsed.scheme,
+                parsed.netloc,
+                "/favicon.ico",
+                "",
+                "",
+                "",
+            )
+        )
+
+    def _sanitize_extruct_preview(
+        self,
+        *,
+        requested_url: str,
+        extracted_final_url: str,
+        preview: dict[str, Optional[str]],
+    ) -> tuple[str, dict[str, Optional[str]]]:
+        sanitized_preview = dict(preview)
+        consent_final_url = self._is_consent_gateway_url(extracted_final_url)
+        consent_title = self._is_consent_like_text(sanitized_preview.get("title"))
+
+        if consent_title:
+            sanitized_preview["title"] = None
+
+        if consent_final_url or consent_title:
+            for field in ("description", "site_name"):
+                sanitized_preview[field] = None
+
+        if consent_final_url:
+            for field in ("image", "logo"):
+                sanitized_preview[field] = None
+            extracted_final_url = requested_url
+
+        return extracted_final_url, sanitized_preview
+
+    def _prefer_non_consent_url(self, *candidates: Optional[str]) -> Optional[str]:
+        first_valid: Optional[str] = None
+        for candidate in candidates:
+            normalized = self._normalize_optional_url(candidate, base_url="https://")
+            if not normalized:
+                continue
+
+            if first_valid is None:
+                first_valid = normalized
+
+            if not self._is_consent_gateway_url(normalized):
+                return normalized
+
+        return first_valid
+
+    @staticmethod
+    def _is_consent_gateway_url(url: Optional[str]) -> bool:
+        if not url:
+            return False
+
+        parsed = urlparse(url)
+        hostname = (parsed.hostname or "").strip().lower()
+        if not hostname:
+            return False
+
+        return any(
+            hostname == consent_host or hostname.endswith(f".{consent_host}")
+            for consent_host in CONSENT_GATEWAY_HOSTS
+        )
+
+    @staticmethod
+    def _is_consent_like_text(value: Optional[str]) -> bool:
+        if not value:
+            return False
+
+        normalized = " ".join(value.split()).strip().lower()
+        if not normalized:
+            return False
+
+        return any(
+            normalized.startswith(prefix) or prefix in normalized
+            for prefix in CONSENT_TITLE_PREFIXES
+        )
 
     def _extract_thumbnail(
         self, info: Mapping[str, Any], *, base_url: str
     ) -> Optional[str]:
-        thumbnail = self._normalize_optional_url(
-            info.get("thumbnail"), base_url=base_url
-        )
-        if thumbnail:
-            return thumbnail
-
         thumbnails = info.get("thumbnails")
-        if not isinstance(thumbnails, list):
-            return None
+        best_thumbnail_url: Optional[str] = None
+        best_score = -1
 
-        for candidate in reversed(thumbnails):
-            if not isinstance(candidate, dict):
-                continue
-            normalized = self._normalize_optional_url(
-                candidate.get("url"), base_url=base_url
-            )
-            if normalized:
-                return normalized
-        return None
+        if isinstance(thumbnails, list):
+            for candidate in thumbnails:
+                if not isinstance(candidate, dict):
+                    continue
+
+                normalized = self._normalize_optional_url(
+                    candidate.get("url"), base_url=base_url
+                )
+                if not normalized:
+                    continue
+
+                width = self._coerce_dimension_value(candidate.get("width"))
+                height = self._coerce_dimension_value(candidate.get("height"))
+                area_score = width * height
+
+                quality_hint_score = 0
+                lowered_url = normalized.lower()
+                if "maxres" in lowered_url:
+                    quality_hint_score += 5_000_000
+                elif "sddefault" in lowered_url:
+                    quality_hint_score += 4_000_000
+                elif "hqdefault" in lowered_url:
+                    quality_hint_score += 3_000_000
+                elif "mqdefault" in lowered_url:
+                    quality_hint_score += 2_000_000
+
+                score = area_score + quality_hint_score
+                if score > best_score:
+                    best_score = score
+                    best_thumbnail_url = normalized
+
+        if best_thumbnail_url:
+            return best_thumbnail_url
+
+        return self._normalize_optional_url(info.get("thumbnail"), base_url=base_url)
 
     def _merge_preview_data(
         self,
@@ -467,18 +699,53 @@ class LinkPreviewService:
         extruct_preview: dict[str, Optional[str]],
         ytdlp_preview: dict[str, Optional[str]],
     ) -> dict[str, Any]:
-        merged_final_url = self._first_non_empty(
-            ytdlp_preview.get("final_url"),
-            final_url,
+        merged_final_url = (
+            self._prefer_non_consent_url(
+                ytdlp_preview.get("final_url"),
+                final_url,
+                normalized_url,
+            )
+            or normalized_url
+        )
+
+        extruct_title = extruct_preview.get("title")
+        if self._is_consent_like_text(extruct_title):
+            extruct_title = None
+
+        extruct_description = extruct_preview.get("description")
+        if self._is_consent_like_text(extruct_description):
+            extruct_description = None
+
+        extruct_site_name = extruct_preview.get("site_name")
+        if self._is_consent_like_text(extruct_site_name):
+            extruct_site_name = None
+
+        fallback_favicon = self._first_non_empty(
+            self._build_favicon_fallback_url(merged_final_url or normalized_url),
+            self._build_favicon_fallback_url(normalized_url),
         )
 
         has_extruct_data = any(
             extruct_preview.get(field)
-            for field in ("title", "description", "image", "site_name")
+            for field in (
+                "title",
+                "description",
+                "image",
+                "logo",
+                "favicon",
+                "site_name",
+            )
         )
         has_ytdlp_data = any(
             ytdlp_preview.get(field)
-            for field in ("title", "description", "image", "site_name")
+            for field in (
+                "title",
+                "description",
+                "image",
+                "logo",
+                "favicon",
+                "site_name",
+            )
         )
 
         source = "extruct"
@@ -491,19 +758,28 @@ class LinkPreviewService:
             "url": normalized_url,
             "final_url": merged_final_url,
             "title": self._first_non_empty(
-                extruct_preview.get("title"),
+                extruct_title,
                 ytdlp_preview.get("title"),
             ),
             "description": self._first_non_empty(
-                extruct_preview.get("description"),
+                extruct_description,
                 ytdlp_preview.get("description"),
             ),
             "image": self._first_non_empty(
                 extruct_preview.get("image"),
                 ytdlp_preview.get("image"),
             ),
+            "logo": self._first_non_empty(
+                extruct_preview.get("logo"),
+                ytdlp_preview.get("logo"),
+            ),
+            "favicon": self._first_non_empty(
+                extruct_preview.get("favicon"),
+                ytdlp_preview.get("favicon"),
+                fallback_favicon,
+            ),
             "site_name": self._first_non_empty(
-                extruct_preview.get("site_name"),
+                extruct_site_name,
                 ytdlp_preview.get("site_name"),
             ),
             "source": source,
@@ -524,6 +800,8 @@ class LinkPreviewService:
             title=payload.get("title"),
             description=payload.get("description"),
             image=payload.get("image"),
+            logo=payload.get("logo"),
+            favicon=payload.get("favicon"),
             site_name=payload.get("site_name"),
             source=payload.get("source", "extruct"),
             cache_hit=cache_hit,
@@ -533,7 +811,14 @@ class LinkPreviewService:
     def _has_preview_data(self, payload: dict[str, Any]) -> bool:
         return any(
             payload.get(field)
-            for field in ("title", "description", "image", "site_name")
+            for field in (
+                "title",
+                "description",
+                "image",
+                "logo",
+                "favicon",
+                "site_name",
+            )
         )
 
     def _should_try_ytdlp(
@@ -815,6 +1100,27 @@ class LinkPreviewService:
             if text:
                 return text
         return None
+
+    @staticmethod
+    def _coerce_dimension_value(value: Any) -> int:
+        if isinstance(value, int):
+            return max(0, value)
+
+        if isinstance(value, float):
+            if not value.is_integer():
+                return 0
+            return max(0, int(value))
+
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return 0
+            try:
+                return max(0, int(stripped))
+            except ValueError:
+                return 0
+
+        return 0
 
     def _get_cached_payload(self, normalized_url: str) -> Optional[dict[str, Any]]:
         cache_key = normalized_url.lower()

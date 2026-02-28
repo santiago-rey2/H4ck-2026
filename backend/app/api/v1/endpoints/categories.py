@@ -54,7 +54,7 @@ def read_category(
 
 @router.get(
     "/{category_id}/items",
-    response_model=list[ItemResponse], # Asumiendo que importas ItemResponse
+    response_model=list[ItemResponse],
     responses={**COMMON_RESPONSES}
 )
 def read_category_items(
@@ -68,3 +68,16 @@ def read_category_items(
     if not category:
         raise HTTPException(status_code=404, detail="Categoría no encontrada")
     return category.items
+
+@router.delete("/{category_id}", response_model=CategoryResponse)
+def delete_category(
+    category_id: int,
+    db: SessionDep
+):
+    """
+    Elimina una categoría del sistema por su ID.
+    """
+    category = category_service.get(db, id=category_id)
+    if not category:
+        raise HTTPException(status_code=404, detail="Categoría no encontrada")
+    return category_service.remove(db, id=category_id)

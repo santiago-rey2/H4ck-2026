@@ -1,10 +1,13 @@
-from typing import Generic, List, Optional, Type, TypeVar
-from sqlmodel import Session, select, SQLModel
+from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union
+from sqlmodel import Session, SQLModel, select
+from datetime import datetime, timezone
 
 ModelType = TypeVar("ModelType", bound=SQLModel)
 CreateSchemaType = TypeVar("CreateSchemaType", bound=SQLModel)
+UpdateSchemaType = TypeVar("UpdateSchemaType", bound=SQLModel)  # Nuevo Genérico
 
-class CRUDBase(Generic[ModelType, CreateSchemaType]):
+
+class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     def __init__(self, model: Type[ModelType]):
         self.model = model
 
@@ -12,7 +15,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType]):
         return db.get(self.model, id)
 
     def get_multi(self, db: Session, skip: int = 0, limit: int = 100) -> List[ModelType]:
-        statement = select(self.model).offset(skip).limit(limit)
+        statement = select(self.model).where(self.model.active == True).offset(skip).limit(limit)
         return list(db.exec(statement).all())
 
     def create(self, db: Session, obj_in: CreateSchemaType) -> ModelType:
@@ -22,8 +25,39 @@ class CRUDBase(Generic[ModelType, CreateSchemaType]):
         db.refresh(db_obj)
         return db_obj
 
-    def remove(self, db: Session, id: int) -> ModelType:
-        obj = db.get(self.model, id)
-        db.delete(obj)
+    def update(
+            self,
+            db: Session,
+            *,
+            db_obj: ModelType,
+            obj_in: Union[UpdateSchemaType, Dict[str, Any]]
+    ) -> ModelType:
+        obj_data = db_obj.model_dump()
+        if isinstance(obj_in, dict):
+            update_data = obj_in
+        else:
+            update_data = obj_in.model_dump(exclude_unset=True)
+
+        for field in obj_data:
+            if field in update_data:
+                setattr(db_obj, field, update_data[field])
+
+        if hasattr(db_obj, "updated_at"):
+            db_obj.updated_at = datetime.now(timezone.utc)
+
+        db.add(db_obj)
         db.commit()
-        return obj
+        db.refresh(db_obj)
+        return db_obj
+
+    def remove(self, db: Session, id: int) -> Optional[ModelType]:
+        db_obj = db.get(self.model, id)
+        if db_obj:
+            db_obj.active = False
+            if hasattr(db_obj, "deactivated_at"):
+                db_obj.deactivated_at = datetime.now(timezone.utc)
+
+            db.add(db_obj)
+            db.commit()
+            db.refresh(db_obj)
+        return db_obj

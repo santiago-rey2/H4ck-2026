@@ -6,3 +6,5 @@ export { SidebarHeader } from "./SidebarHeader";
 export { SidebarNavigation } from "./SidebarNavigation";
 export { SidebarSection } from "./SidebarSection";
 export { SidebarTile } from "./SidebarTile";
+export { DataItemCard } from "./DataItemCard";
+export { DataItemsList } from "./DataItemsList";

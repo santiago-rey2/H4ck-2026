@@ -16,15 +16,22 @@ class CRUDItem(CRUDBase[Item, ItemCreate, ItemUpdate]):
         item_data = obj_in.model_dump()
         category_ids = item_data.pop("category_ids", [])
         db_item = Item(**item_data)
+
         if category_ids:
+            print("Asignando categorías manuales...")
             statement = select(Category).where(Category.id.in_(category_ids))
-            db_categories = db.exec(statement).all()
-            db_item.categories = list(db_categories)
+            db_item.categories = list(db.exec(statement).all())
+
+            db.add(db_item)
+            db.commit()
+            db.refresh(db_item)
+            return db_item
 
         db.add(db_item)
         db.commit()
         db.refresh(db_item)
 
+        print("Iniciando clasificación por IA...")
         ai_result = await classify_content_semantically(
             content=db_item.name,
             format=db_item.format,
@@ -34,11 +41,12 @@ class CRUDItem(CRUDBase[Item, ItemCreate, ItemUpdate]):
         suggested_names = ai_result.get("categories", [])
         if suggested_names:
             statement = select(Category).where(Category.name.in_(suggested_names))
-            db_item.categories = db.exec(statement).all()
+            db_item.categories = list(db.exec(statement).all())
 
             db.add(db_item)
             db.commit()
             db.refresh(db_item)
+
         return db_item
 
     def update(self, db: Session, *, db_obj: Item, obj_in: ItemUpdate) -> Item:

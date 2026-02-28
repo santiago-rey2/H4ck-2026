@@ -44,10 +44,10 @@ export function HomePage() {
 						</h1>
 						<p className="text-sm text-slate-600 dark:text-slate-400 max-w-2xl">
 							Busca, filtra y organiza tus datos desde el sidebar izquierdo. Usa
-							el panel derecho para introducir contenido o simular preguntas al
-							chatbot. El tablero central usa una cuadricula densa con tarjetas
-							de ancho variable e infinite scroll para una exploracion mas
-							dinamica.
+							el panel derecho para crear items reales; el backend asigna de
+							forma automatica categorias y formato. El tablero central usa una
+							cuadricula densa con tarjetas de ancho variable e infinite scroll
+							para una exploracion mas dinamica.
 						</p>
 
 						{activeFiltersCount > 0 ? (

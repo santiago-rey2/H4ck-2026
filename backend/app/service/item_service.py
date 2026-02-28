@@ -8,9 +8,11 @@ from app.model.items import Item, ItemCreate, ItemUpdate
 from app.model.category import Category
 from sqlmodel import Session, select
 
+from app.service.ia_service import classify_content_semantically
+
 
 class CRUDItem(CRUDBase[Item, ItemCreate, ItemUpdate]):
-    def create_with_categories(self, db: Session, *, obj_in: ItemCreate) -> Item:
+    async def create_with_categories(self, db: Session, *, obj_in: ItemCreate) -> Item:
         item_data = obj_in.model_dump()
         category_ids = item_data.pop("category_ids", [])
         db_item = Item(**item_data)
@@ -22,6 +24,21 @@ class CRUDItem(CRUDBase[Item, ItemCreate, ItemUpdate]):
         db.add(db_item)
         db.commit()
         db.refresh(db_item)
+
+        ai_result = await classify_content_semantically(
+            content=db_item.name,
+            format=db_item.format,
+            db=db
+        )
+
+        suggested_names = ai_result.get("categories", [])
+        if suggested_names:
+            statement = select(Category).where(Category.name.in_(suggested_names))
+            db_item.categories = db.exec(statement).all()
+
+            db.add(db_item)
+            db.commit()
+            db.refresh(db_item)
         return db_item
 
     def update(self, db: Session, *, db_obj: Item, obj_in: ItemUpdate) -> Item:
@@ -84,5 +101,6 @@ class CRUDItem(CRUDBase[Item, ItemCreate, ItemUpdate]):
             .limit(limit)
         )
         return list(db.exec(statement).all())
+
 
 item_service = CRUDItem(Item)

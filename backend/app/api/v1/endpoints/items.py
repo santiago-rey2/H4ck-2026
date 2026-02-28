@@ -22,8 +22,9 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 
 @router.post("/", response_model=ItemResponse)
-def create_item(item_in: ItemCreate, db: SessionDep):
-    return item_service.create_with_categories(db, obj_in=item_in)
+async def create_item(item_in: ItemCreate, db: SessionDep):
+    db_item = await item_service.create_with_categories(db, obj_in=item_in)
+    return db_item
 
 
 @router.get("/all", response_model=list[ItemResponse])

@@ -14,30 +14,6 @@ export const routes: RouteObject[] = [
 				index: true,
 				element: <HomePage />,
 			},
-			{
-				path: "profile",
-				element: <Layout />,
-			},
-			{
-				path: "models",
-				element: <Layout />,
-			},
-			{
-				path: "models/create",
-				element: <Layout />,
-			},
-			{
-				path: "models/:modelId/signatures/create",
-				element: <Layout />,
-			},
-			{
-				path: "models/:modelId/signatures/:signatureId/predictions/create",
-				element: <Layout />,
-			},
-			{
-				path: "models/:modelId/signatures/:signatureId/predictions/create/:inputs",
-				element: <Layout />,
-			},
 		],
 	},
 ];

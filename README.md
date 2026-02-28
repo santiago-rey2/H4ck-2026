@@ -34,7 +34,7 @@ Link preview behavior:
 Frontend item creation:
 
 - The right sidebar `Entrada` panel now creates real items via `POST /items/`.
-- Current UI scope supports `dato`, `nota`, and `link` (auto-detected from content).
+- The frontend sends only the entered content; format assignment is handled by the backend.
 - Categories/tags are assigned automatically by the backend.
 
 Stop:

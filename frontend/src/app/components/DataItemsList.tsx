@@ -169,6 +169,7 @@ export function DataItemsList() {
 	const searchQuery = useAtomValue(dataSearchQueryAtom);
 	const selectedFormats = useAtomValue(selectedFormatsAtom);
 	const selectedTags = useAtomValue(selectedTagsAtom);
+	const isSearchActive = searchQuery.trim().length > 0;
 	const hasRenderedOnce = useRef(false);
 	const sentinelRef = useRef<HTMLDivElement | null>(null);
 	const listItemVariants = getListItemVariants(prefersReducedMotion);
@@ -192,29 +193,28 @@ export function DataItemsList() {
 	);
 
 	const activeFiltersCount =
-		selectedFormats.length +
-		selectedTags.length +
-		(searchQuery.trim().length > 0 ? 1 : 0);
+		selectedFormats.length + selectedTags.length + (isSearchActive ? 1 : 0);
 
 	useEffect(() => {
-		if (isLoading || isFetchingNextPage) {
+		if (isLoading || isFetchingNextPage || !hasNextPage) {
 			return;
 		}
 
-		if (orderedItems.length === 0 && hasNextPage) {
+		if (isSearchActive || orderedItems.length === 0) {
 			void fetchNextPage();
 		}
 	}, [
 		fetchNextPage,
 		orderedItems.length,
 		hasNextPage,
+		isSearchActive,
 		isFetchingNextPage,
 		isLoading,
 	]);
 
 	useEffect(() => {
 		const sentinel = sentinelRef.current;
-		if (!sentinel || !hasNextPage || isFetchingNextPage) {
+		if (!sentinel || !hasNextPage || isFetchingNextPage || isSearchActive) {
 			return;
 		}
 
@@ -237,7 +237,7 @@ export function DataItemsList() {
 		return () => {
 			observer.disconnect();
 		};
-	}, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+	}, [fetchNextPage, hasNextPage, isFetchingNextPage, isSearchActive]);
 
 	if (isLoading) {
 		return (

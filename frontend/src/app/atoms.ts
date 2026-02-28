@@ -39,9 +39,7 @@ export const dataSearchQueryAtom = atom("");
 export const selectedFormatsAtom = atom<string[]>([]);
 export const selectedTagsAtom = atom<string[]>([]);
 
-export const rightSidebarModeAtom = atom<"entry" | "chatbot">("entry");
 export const entryDraftAtom = atom("");
-export const chatbotDraftAtom = atom("");
 export const mobileActiveViewAtom = atom<"filters" | "home" | "panel">("home");
 
 export interface LinkViewerState {

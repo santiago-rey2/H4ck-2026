@@ -110,7 +110,7 @@ export function LeftFiltersSidebar({
 					Filtros y busqueda
 				</h2>
 				<p className="text-sm text-slate-600 dark:text-slate-400 mt-2">
-					Refina las tarjetas por texto, tipo o tags.
+					Refina tarjetas por texto, tag, formato, fecha, ID o URL.
 				</p>
 				<p className="text-[11px] text-slate-500 dark:text-slate-500 mt-2">
 					{hasMore
@@ -126,7 +126,7 @@ export function LeftFiltersSidebar({
 						type="text"
 						value={searchQuery}
 						onChange={(event) => setSearchQuery(event.target.value)}
-						placeholder="Buscar por texto o tag"
+						placeholder="Buscar por texto, tag, formato, fecha, ID o URL"
 						className="w-full h-10 rounded-xl border border-slate-300/80 bg-white/80 dark:bg-slate-900/70 dark:border-slate-700 pl-9 pr-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500"
 					/>
 				</div>

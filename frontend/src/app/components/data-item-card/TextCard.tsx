@@ -10,12 +10,38 @@ interface TextCardProps {
 	prefersReducedMotion: boolean;
 }
 
+const LONG_TEXT_PREVIEW_LIMIT = 280;
+
+function buildLongTextPreview(value: string, maxLength: number): string {
+	if (value.length <= maxLength) {
+		return value;
+	}
+
+	const initialSlice = value.slice(0, maxLength);
+	const lastWordBoundary = initialSlice.lastIndexOf(" ");
+	if (lastWordBoundary <= Math.floor(maxLength * 0.6)) {
+		return `${initialSlice.trimEnd()}...`;
+	}
+
+	return `${initialSlice.slice(0, lastWordBoundary).trimEnd()}...`;
+}
+
 export function TextCard({ item, prefersReducedMotion }: TextCardProps) {
 	const [copied, setCopied] = useState(false);
+	const [isExpanded, setIsExpanded] = useState(false);
 	const styles = getBaseStyleForItem(item.formato);
 	const Icon = item.formato === "nota" ? StickyNote : FileText;
+	const isLongText = item.formato === "nota";
+	const shouldCollapseLongText =
+		isLongText && item.texto.length > LONG_TEXT_PREVIEW_LIMIT;
+	const previewText = shouldCollapseLongText
+		? buildLongTextPreview(item.texto, LONG_TEXT_PREVIEW_LIMIT)
+		: item.texto;
+	const displayedText =
+		shouldCollapseLongText && !isExpanded ? previewText : item.texto;
 	const formattedDate = new Date(item.fecha).toLocaleDateString("es-ES", {
-		month: "short",
+		year: "numeric",
+		month: "long",
 		day: "numeric",
 	});
 
@@ -48,9 +74,24 @@ export function TextCard({ item, prefersReducedMotion }: TextCardProps) {
 					</button>
 				</div>
 
-				<p className="font-medium text-sm leading-relaxed text-slate-900 dark:text-slate-100">
-					{item.texto}
-				</p>
+				<div className="space-y-1">
+					<p className="font-medium text-sm leading-relaxed text-slate-900 dark:text-slate-100 whitespace-pre-wrap break-words">
+						{displayedText}
+					</p>
+
+					{shouldCollapseLongText ? (
+						<button
+							type="button"
+							onClick={() => {
+								setIsExpanded((currentValue) => !currentValue);
+							}}
+							className={`text-xs font-semibold transition-colors ${styles.iconColor} hover:opacity-80`}
+							aria-expanded={isExpanded}
+						>
+							{isExpanded ? "Ver menos" : "Ver mas"}
+						</button>
+					) : null}
+				</div>
 
 				<CardFooter
 					item={item}

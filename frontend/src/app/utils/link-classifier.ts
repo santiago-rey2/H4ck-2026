@@ -55,6 +55,22 @@ const LOCATION_DOMAINS = [
 	"wego.here.com",
 ];
 
+const LOCATION_NAME_QUERY_KEYS = ["q", "query", "destination", "daddr"];
+
+const IGNORED_LOCATION_NAME_SEGMENTS = new Set([
+	"maps",
+	"map",
+	"place",
+	"dir",
+	"search",
+	"data",
+	"location",
+	"loc",
+]);
+
+const COORDINATE_ONLY_REGEX =
+	/^(?:loc:|coords?:)?\s*\(?\s*-?\d{1,2}(?:\.\d+)?\s*[,\s]\s*-?\d{1,3}(?:\.\d+)?(?:\s*,\s*\d+(?:\.\d+)?z?)?\s*\)?$/i;
+
 function hostMatches(hostname: string, domain: string): boolean {
 	return hostname === domain || hostname.endsWith(`.${domain}`);
 }
@@ -81,6 +97,102 @@ function sanitizeYouTubeId(rawValue: string | null | undefined): string | null {
 	}
 
 	return cleaned;
+}
+
+function parseColonTimestampToSeconds(value: string): number | null {
+	const segments = value
+		.split(":")
+		.map((segment) => Number.parseInt(segment, 10));
+	if (segments.some((segment) => !Number.isFinite(segment) || segment < 0)) {
+		return null;
+	}
+
+	if (segments.length === 2) {
+		const [minutes, seconds] = segments;
+		if (seconds >= 60) {
+			return null;
+		}
+
+		return minutes * 60 + seconds;
+	}
+
+	if (segments.length === 3) {
+		const [hours, minutes, seconds] = segments;
+		if (minutes >= 60 || seconds >= 60) {
+			return null;
+		}
+
+		return hours * 3600 + minutes * 60 + seconds;
+	}
+
+	return null;
+}
+
+function parseYouTubeTimestampToSeconds(
+	rawValue: string | null | undefined,
+): number | null {
+	const candidate = rawValue?.trim().toLowerCase();
+	if (!candidate) {
+		return null;
+	}
+
+	if (/^\d+$/.test(candidate)) {
+		const parsed = Number.parseInt(candidate, 10);
+		return parsed > 0 ? parsed : null;
+	}
+
+	if (/^\d{1,3}:\d{1,2}(?::\d{1,2})?$/.test(candidate)) {
+		const parsed = parseColonTimestampToSeconds(candidate);
+		return parsed && parsed > 0 ? parsed : null;
+	}
+
+	let totalSeconds = 0;
+	let hasUnitMatch = false;
+	const unitRegex = /(\d+)\s*(h|m|s)/g;
+	for (const match of candidate.matchAll(unitRegex)) {
+		const amount = Number.parseInt(match[1], 10);
+		if (!Number.isFinite(amount) || amount < 0) {
+			continue;
+		}
+
+		hasUnitMatch = true;
+		const unit = match[2];
+		if (unit === "h") {
+			totalSeconds += amount * 3600;
+			continue;
+		}
+
+		if (unit === "m") {
+			totalSeconds += amount * 60;
+			continue;
+		}
+
+		totalSeconds += amount;
+	}
+
+	if (hasUnitMatch && totalSeconds > 0) {
+		return totalSeconds;
+	}
+
+	return null;
+}
+
+function extractYouTubeStartSeconds(parsedUrl: URL): number | null {
+	const explicitStart = parseYouTubeTimestampToSeconds(
+		parsedUrl.searchParams.get("start"),
+	);
+	if (explicitStart && explicitStart > 0) {
+		return explicitStart;
+	}
+
+	const timestampStart = parseYouTubeTimestampToSeconds(
+		parsedUrl.searchParams.get("t"),
+	);
+	if (timestampStart && timestampStart > 0) {
+		return timestampStart;
+	}
+
+	return null;
 }
 
 function parseCoordinatePair(
@@ -110,6 +222,129 @@ function parseCoordinatePair(
 
 	if (Math.abs(first) <= 180 && Math.abs(second) <= 90) {
 		return { lat: second, lon: first };
+	}
+
+	return null;
+}
+
+function decodeUriComponentSafe(value: string): string {
+	try {
+		return decodeURIComponent(value);
+	} catch {
+		return value;
+	}
+}
+
+function isCoordinateOnlyText(rawValue: string): boolean {
+	const compact = rawValue.trim();
+	if (!compact) {
+		return false;
+	}
+
+	if (!COORDINATE_ONLY_REGEX.test(compact)) {
+		return false;
+	}
+
+	return parseCoordinatePair(compact) !== null;
+}
+
+function normalizeLocationNameCandidate(
+	rawValue: string | null | undefined,
+): string | null {
+	const candidate = rawValue?.trim();
+	if (!candidate) {
+		return null;
+	}
+
+	const decodedCandidate = decodeUriComponentSafe(candidate.replace(/\+/g, " "))
+		.replace(/\s+/g, " ")
+		.trim();
+	if (!decodedCandidate) {
+		return null;
+	}
+
+	const loweredCandidate = decodedCandidate.toLowerCase();
+	if (IGNORED_LOCATION_NAME_SEGMENTS.has(loweredCandidate)) {
+		return null;
+	}
+
+	if (
+		decodedCandidate.startsWith("@") ||
+		decodedCandidate.startsWith("!") ||
+		isCoordinateOnlyText(decodedCandidate)
+	) {
+		return null;
+	}
+
+	return decodedCandidate;
+}
+
+function extractLocationNameFromSearchParams(url: URL): string | null {
+	for (const key of LOCATION_NAME_QUERY_KEYS) {
+		const normalizedCandidate = normalizeLocationNameCandidate(
+			url.searchParams.get(key),
+		);
+		if (normalizedCandidate) {
+			return normalizedCandidate;
+		}
+	}
+
+	return null;
+}
+
+function extractLocationNameFromPath(url: URL): string | null {
+	const decodedPathSegments = url.pathname
+		.split("/")
+		.filter(Boolean)
+		.map((segment) => decodeUriComponentSafe(segment));
+	if (decodedPathSegments.length === 0) {
+		return null;
+	}
+
+	const loweredSegments = decodedPathSegments.map((segment) =>
+		segment.toLowerCase(),
+	);
+
+	const placeIndex = loweredSegments.indexOf("place");
+	if (placeIndex >= 0 && placeIndex + 1 < decodedPathSegments.length) {
+		const placeCandidate = normalizeLocationNameCandidate(
+			decodedPathSegments[placeIndex + 1],
+		);
+		if (placeCandidate) {
+			return placeCandidate;
+		}
+	}
+
+	const searchIndex = loweredSegments.indexOf("search");
+	if (searchIndex >= 0) {
+		for (
+			let index = searchIndex + 1;
+			index < decodedPathSegments.length;
+			index += 1
+		) {
+			const searchCandidate = normalizeLocationNameCandidate(
+				decodedPathSegments[index],
+			);
+			if (searchCandidate) {
+				return searchCandidate;
+			}
+		}
+	}
+
+	const dirIndex = loweredSegments.indexOf("dir");
+	if (dirIndex >= 0) {
+		for (
+			let index = decodedPathSegments.length - 1;
+			index > dirIndex;
+			index -= 1
+		) {
+			const directionCandidate = normalizeLocationNameCandidate(
+				decodedPathSegments[index],
+			);
+			if (directionCandidate) {
+				return directionCandidate;
+			}
+		}
 	}
 
 	return null;
@@ -392,6 +627,51 @@ export function extractYouTubeVideoId(
 	return null;
 }
 
+export function buildYouTubeEmbedUrl(
+	rawValue: string | null | undefined,
+): string | null {
+	const normalized = normalizeLinkTarget(rawValue);
+	if (!normalized) {
+		return null;
+	}
+
+	let parsedUrl: URL;
+	try {
+		parsedUrl = new URL(normalized);
+	} catch {
+		return null;
+	}
+
+	const hostname = parsedUrl.hostname.toLowerCase();
+	if (!isYouTubeHost(hostname)) {
+		return null;
+	}
+
+	const videoId = extractYouTubeVideoId(normalized);
+	if (!videoId) {
+		return null;
+	}
+
+	const embedUrl = new URL(`https://www.youtube.com/embed/${videoId}`);
+
+	const startSeconds = extractYouTubeStartSeconds(parsedUrl);
+	if (startSeconds && startSeconds > 0) {
+		embedUrl.searchParams.set("start", String(startSeconds));
+	}
+
+	const listId = parsedUrl.searchParams.get("list")?.trim();
+	if (listId) {
+		embedUrl.searchParams.set("list", listId);
+
+		const listIndex = parsedUrl.searchParams.get("index")?.trim();
+		if (listIndex && /^\d+$/.test(listIndex)) {
+			embedUrl.searchParams.set("index", listIndex);
+		}
+	}
+
+	return embedUrl.toString();
+}
+
 export function extractLocationCoordinates(
 	rawValue: string | null | undefined,
 ): LocationCoordinates | null {
@@ -450,6 +730,38 @@ export function extractLocationCoordinates(
 	const fallbackCoords = parseCoordinatePair(normalized);
 	if (fallbackCoords) {
 		return fallbackCoords;
+	}
+
+	return null;
+}
+
+export function extractLocationName(
+	rawValue: string | null | undefined,
+): string | null {
+	const normalized = normalizeLinkTarget(rawValue);
+	if (!normalized) {
+		return null;
+	}
+
+	let parsedUrl: URL;
+	try {
+		parsedUrl = new URL(normalized);
+	} catch {
+		return null;
+	}
+
+	if (!isLocationUrl(parsedUrl)) {
+		return null;
+	}
+
+	const queryCandidate = extractLocationNameFromSearchParams(parsedUrl);
+	if (queryCandidate) {
+		return queryCandidate;
+	}
+
+	const pathCandidate = extractLocationNameFromPath(parsedUrl);
+	if (pathCandidate) {
+		return pathCandidate;
 	}
 
 	return null;

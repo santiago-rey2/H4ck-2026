@@ -42,7 +42,32 @@ export const setReauthenticationCallback = (cb: ReauthenticationHandler) =>
 export const initNetworkErrorHandler = (cb: NetworkErrorHandler) =>
 	(netErrCb = cb);
 
-const BASE = import.meta.env.VITE_BACKEND_URL;
+const rawBase = import.meta.env.VITE_BACKEND_URL?.replace(/\/$/, "") ?? "";
+const BASE = rawBase || "/api";
+
+const ensureLeadingSlash = (path: string) =>
+	path.startsWith("/") ? path : `/${path}`;
+
+const buildUrl = (path: string) => {
+	const normalizedPath = ensureLeadingSlash(path);
+
+	if (BASE === "/api" && normalizedPath.startsWith("/api/")) {
+		return normalizedPath;
+	}
+
+	return `${BASE}${normalizedPath}`;
+};
+
+const resolvePathname = (urlOrPath: string) => {
+	const origin =
+		typeof window !== "undefined" ? window.location.origin : "http://localhost";
+
+	try {
+		return new URL(urlOrPath, origin).pathname;
+	} catch {
+		return ensureLeadingSlash(urlOrPath);
+	}
+};
 
 const buildInit = (init?: RequestInit): RequestInit => ({
 	credentials: "include",
@@ -62,7 +87,7 @@ function fabricateDto(res: Response, path: string, msg: string): ErrorDto {
 		timestamp: nowIso(),
 		status: res.status,
 		message: msg,
-		path: new URL(path, BASE).pathname,
+		path: resolvePathname(buildUrl(path)),
 	};
 }
 
@@ -71,7 +96,7 @@ function fabricateNetworkDto(path: string, msg = "Network Error"): ErrorDto {
 		timestamp: nowIso(),
 		status: 0, // non-HTTP failure
 		message: msg,
-		path: new URL(path, BASE).pathname,
+		path: resolvePathname(buildUrl(path)),
 	};
 }
 
@@ -81,7 +106,7 @@ export async function appFetch<T = unknown>(
 	init?: RequestInit,
 ): Promise<T> {
 	try {
-		const res = await fetch(`${BASE}${path}`, buildInit(init));
+		const res = await fetch(buildUrl(path), buildInit(init));
 
 		// Success
 		if (res.ok) {

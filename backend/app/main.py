@@ -51,5 +51,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.get("/healthz", tags=["Health"])
+def healthcheck() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 app.include_router(items.router, prefix="/items", tags=["Items"])
 app.include_router(categories.router, prefix="/categories", tags=["Categories"])

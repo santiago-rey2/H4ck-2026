@@ -13,6 +13,7 @@ from app.model.items import (
     ItemUpdate,
     Item,
     LinkPreviewResponse,
+    PaginatedItemsResponse,
 )
 from app.service.item_service import item_service
 from app.service.link_preview_service import link_preview_service
@@ -25,6 +26,38 @@ SessionDep = Annotated[Session, Depends(get_session)]
 async def create_item(item_in: ItemCreate, db: SessionDep):
     db_item = await item_service.create_with_categories(db, obj_in=item_in)
     return db_item
+
+
+@router.get("/", response_model=PaginatedItemsResponse)
+def read_items_paginated(
+    db: SessionDep,
+    skip: int = 0,
+    limit: int = 20,
+    name: Optional[str] = None,
+    format: Optional[str] = None,
+    has_categories: Optional[bool] = None,
+    category_id: Optional[int] = None,
+):
+    safe_skip = max(skip, 0)
+    safe_limit = max(1, min(limit, 100))
+
+    items, has_more = item_service.get_multi_paginated(
+        db,
+        skip=safe_skip,
+        limit=safe_limit,
+        name=name,
+        format_name=format,
+        has_categories=has_categories,
+        category_id=category_id,
+    )
+
+    return PaginatedItemsResponse(
+        items=items,
+        skip=safe_skip,
+        limit=safe_limit,
+        has_more=has_more,
+        next_skip=safe_skip + safe_limit if has_more else None,
+    )
 
 
 @router.get("/all", response_model=list[ItemResponse])

@@ -34,3 +34,64 @@ export const themeWithHtmlAtom = atom(
 export const fullscreenAtom = atom(false);
 
 export const isDarkMode = atom((get) => get(themeAtom) === "dark");
+
+export const dataSearchQueryAtom = atom("");
+export const selectedFormatsAtom = atom<string[]>([]);
+export const selectedTagsAtom = atom<string[]>([]);
+
+export const rightSidebarModeAtom = atom<"entry" | "chatbot">("entry");
+export const entryDraftAtom = atom("");
+export const chatbotDraftAtom = atom("");
+export const mobileActiveViewAtom = atom<"filters" | "home" | "panel">("home");
+
+export interface LinkViewerState {
+	open: boolean;
+	iframeUrl: string | null;
+	externalUrl: string | null;
+	title: string | null;
+	hostname: string | null;
+}
+
+export const linkViewerAtom = atom<LinkViewerState>({
+	open: false,
+	iframeUrl: null,
+	externalUrl: null,
+	title: null,
+	hostname: null,
+});
+
+export const openLinkViewerAtom = atom(
+	null,
+	(
+		_get,
+		set,
+		payload: {
+			iframeUrl: string;
+			externalUrl?: string | null;
+			title?: string | null;
+			hostname?: string | null;
+		},
+	) => {
+		set(linkViewerAtom, {
+			open: true,
+			iframeUrl: payload.iframeUrl,
+			externalUrl: payload.externalUrl ?? payload.iframeUrl,
+			title: payload.title ?? null,
+			hostname: payload.hostname ?? null,
+		});
+	},
+);
+
+export const closeLinkViewerAtom = atom(null, (get, set) => {
+	const current = get(linkViewerAtom);
+	set(linkViewerAtom, {
+		...current,
+		open: false,
+	});
+});
+
+export const clearDataFiltersAtom = atom(null, (_get, set) => {
+	set(dataSearchQueryAtom, "");
+	set(selectedFormatsAtom, []);
+	set(selectedTagsAtom, []);
+});

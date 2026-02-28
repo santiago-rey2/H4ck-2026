@@ -46,7 +46,10 @@ class Item(ItemBase, Auditable, table=True):
 
 
 class ItemUpdate(ItemBase):
-    category_ids: List[int] = []
+    name: Optional[str] = None
+    description: Optional[str] = None
+    format: Optional[ItemFormat] = None
+    category_ids: Optional[List[int]] = None
 
 
 class ItemCreate(ItemBase):
@@ -55,6 +58,15 @@ class ItemCreate(ItemBase):
 
 class ItemResponse(ItemBase, Auditable):
     categories: List["CategoryResponse"] = []
+
+
+class PaginatedItemsResponse(SQLModel):
+    items: List["ItemResponse"]
+    skip: int
+    limit: int
+    has_more: bool
+    next_skip: Optional[int] = None
+    total: Optional[int] = None
 
 
 def _utc_now() -> datetime:
@@ -68,10 +80,13 @@ class LinkPreviewResponse(SQLModel):
     title: Optional[str] = None
     description: Optional[str] = None
     image: Optional[str] = None
+    logo: Optional[str] = None
+    favicon: Optional[str] = None
     site_name: Optional[str] = None
     source: Literal["extruct", "yt_dlp", "mixed"] = "extruct"
     cache_hit: bool = False
     fetched_at: datetime = Field(default_factory=_utc_now)
+
 
 Item.model_rebuild()
 ItemResponse.model_rebuild()

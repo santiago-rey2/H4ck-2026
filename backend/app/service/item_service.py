@@ -58,8 +58,7 @@ class CRUDItem(CRUDBase[Item, ItemCreate, ItemUpdate]):
 
         if category_ids is not None:
             statement = select(Category).where(
-                Category.id.in_(category_ids),
-                Category.active == True
+                Category.id.in_(category_ids), Category.active == True
             )
             db_categories = db.exec(statement).all()
 
@@ -69,7 +68,7 @@ class CRUDItem(CRUDBase[Item, ItemCreate, ItemUpdate]):
 
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Las siguientes categorías no están disponibles: {missing_ids}"
+                    detail=f"Las siguientes categorías no están disponibles: {missing_ids}",
                 )
 
             db_obj.categories = list(db_categories)
@@ -80,10 +79,12 @@ class CRUDItem(CRUDBase[Item, ItemCreate, ItemUpdate]):
 
         return db_obj
 
-    def get_by_format(
-            self, db: Session, *, format_name: Optional[str] = None
-    ) -> Any:
-        statement = select(Item).where(Item.active == True).options(selectinload(Item.categories))
+    def get_by_format(self, db: Session, *, format_name: Optional[str] = None) -> Any:
+        statement = (
+            select(Item)
+            .where(Item.active == True)
+            .options(selectinload(Item.categories))
+        )
 
         if format_name:
             statement = statement.where(Item.format == format_name)
@@ -100,7 +101,49 @@ class CRUDItem(CRUDBase[Item, ItemCreate, ItemUpdate]):
 
         return grouped
 
-    def get_uncategorized(self, db: Session, skip: int = 0, limit: int = 100) -> list[Item]:
+    def get_multi_paginated(
+        self,
+        db: Session,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+        name: Optional[str] = None,
+        format_name: Optional[str] = None,
+        has_categories: Optional[bool] = None,
+        category_id: Optional[int] = None,
+    ) -> tuple[list[Item], bool]:
+        statement = (
+            select(Item)
+            .where(Item.active == True)
+            .options(selectinload(Item.categories))
+        )
+
+        if name:
+            statement = statement.where(Item.name.ilike(f"%{name}%"))
+
+        if format_name:
+            statement = statement.where(Item.format == format_name)
+
+        if category_id is not None:
+            statement = statement.where(Item.categories.any(Category.id == category_id))
+        elif has_categories is True:
+            statement = statement.where(Item.categories.any())
+        elif has_categories is False:
+            statement = statement.where(~Item.categories.any())
+
+        statement = statement.order_by(Item.created_at.desc(), Item.id.desc())
+
+        rows = list(db.exec(statement.offset(skip).limit(limit + 1)).all())
+        has_more = len(rows) > limit
+
+        if has_more:
+            rows = rows[:limit]
+
+        return rows, has_more
+
+    def get_uncategorized(
+        self, db: Session, skip: int = 0, limit: int = 100
+    ) -> list[Item]:
         statement = (
             select(Item)
             .where(Item.active == True)

@@ -19,6 +19,17 @@ def create_item(item_in: ItemCreate, db: SessionDep):
 def read_items(db: SessionDep, skip: int = 0, limit: int = 100):
     return item_service.get_multi(db, skip=skip, limit=limit)
 
+@router.get("/by-format")
+def get_items_by_format(
+        db: SessionDep,
+        format_name: Optional[str] = None
+):
+    """
+    Si pasas ?format_name=juan, devuelve lista de ítems de ese formato.
+    Si no pasas nada, devuelve un objeto agrupado por formatos.
+    """
+    return item_service.get_by_format(db, format_name=format_name)
+
 @router.get(
     "/{item_id}",
     response_model=ItemResponse,
@@ -33,16 +44,7 @@ def read_item(
         raise HTTPException(status_code=404, detail="Item not found")
     return item
 
-@router.get("/by-format")
-def get_items_by_format(
-        db: SessionDep,
-        format_name: Optional[str] = None
-):
-    """
-    Si pasas ?format_name=juan, devuelve lista de ítems de ese formato.
-    Si no pasas nada, devuelve un objeto agrupado por formatos.
-    """
-    return item_service.get_by_format(db, format_name=format_name)
+
 
 @router.patch("/{item_id}", response_model=ItemResponse)
 def update_item(

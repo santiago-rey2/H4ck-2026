@@ -9,6 +9,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
 import { ErrorModalProvider } from "./app/components/ErrorModalProvider";
+import { ToastProvider } from "./app/components/ToastProvider";
 import { emitErrorFromUnknown } from "./app/utils/error-sink";
 import "./index.css";
 import { router } from "./router/routes";
@@ -33,14 +34,21 @@ const queryClient = new QueryClient({
 	},
 });
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
+const rootElement = document.getElementById("root");
+if (!rootElement) {
+	throw new Error("Root element '#root' not found");
+}
+
+ReactDOM.createRoot(rootElement).render(
 	<React.StrictMode>
-		<ErrorModalProvider>
-			<QueryClientProvider client={queryClient}>
-				<Provider>
-					<RouterProvider router={router} />
-				</Provider>
-			</QueryClientProvider>
-		</ErrorModalProvider>
+		<ToastProvider>
+			<ErrorModalProvider>
+				<QueryClientProvider client={queryClient}>
+					<Provider>
+						<RouterProvider router={router} />
+					</Provider>
+				</QueryClientProvider>
+			</ErrorModalProvider>
+		</ToastProvider>
 	</React.StrictMode>,
 );

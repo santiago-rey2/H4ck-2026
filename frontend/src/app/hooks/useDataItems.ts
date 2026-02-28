@@ -151,6 +151,7 @@ export function useDeleteItemMutation() {
 		onSuccess: (_, itemId) => {
 			queryClient.invalidateQueries({ queryKey: itemsKeys.all });
 			queryClient.removeQueries({ queryKey: itemsKeys.detail(itemId) });
+			queryClient.removeQueries({ queryKey: itemsKeys.linkPreview(itemId) });
 		},
 	});
 }

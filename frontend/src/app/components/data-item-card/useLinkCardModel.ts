@@ -7,8 +7,9 @@ import type { DataItem } from "@/app/types/data";
 import {
 	buildOpenStreetMapEmbedUrl,
 	buildOpenStreetMapTileSnapshotUrls,
+	buildYouTubeEmbedUrl,
 	classifyLinkTarget,
-	extractLocationCoordinates,
+	extractLocationName,
 	extractYouTubeVideoId,
 	getDisplayHostname,
 	isConsentGatewayUrl,
@@ -93,9 +94,9 @@ export function useLinkCardModel(item: DataItem): LinkCardModel {
 			? resolvedLinkClassification
 			: rawLinkClassification;
 
-	const locationCoordinates =
+	const locationName =
 		linkClassification.kind === "location"
-			? extractLocationCoordinates(externalLinkUrl ?? item.texto)
+			? extractLocationName(externalLinkUrl ?? linkPreview?.url ?? item.texto)
 			: null;
 	const locationEmbedUrl =
 		linkClassification.kind === "location"
@@ -103,10 +104,19 @@ export function useLinkCardModel(item: DataItem): LinkCardModel {
 					externalLinkUrl ?? linkPreview?.url ?? item.texto,
 				)
 			: null;
+	const youtubeEmbedUrl =
+		linkClassification.kind === "video" || linkClassification.kind === "reel"
+			? buildYouTubeEmbedUrl(
+					resolvedPreviewTarget ??
+						previewSourceUrl ??
+						externalLinkUrl ??
+						item.texto,
+				)
+			: null;
 	const viewerIframeUrl =
 		linkClassification.kind === "location"
 			? (locationEmbedUrl ?? linkTargetUrl)
-			: linkTargetUrl;
+			: (youtubeEmbedUrl ?? linkTargetUrl);
 
 	const styles = LINK_KIND_STYLES[linkClassification.kind];
 	const linkKindLabel = LINK_KIND_LABELS[linkClassification.kind];
@@ -131,8 +141,8 @@ export function useLinkCardModel(item: DataItem): LinkCardModel {
 			: null;
 	const locationTitleFallback =
 		linkClassification.kind === "location"
-			? locationCoordinates
-				? `Ubicacion ${locationCoordinates.lat.toFixed(4)}, ${locationCoordinates.lon.toFixed(4)}`
+			? locationName
+				? locationName
 				: `Ubicacion en ${linkPlatform ?? displayHostname}`
 			: null;
 	const previewTitle =
@@ -253,8 +263,8 @@ export function useLinkCardModel(item: DataItem): LinkCardModel {
 		linkClassification.kind === "video"
 			? "Contenido audiovisual"
 			: linkClassification.kind === "location"
-				? locationCoordinates
-					? `Vista de ubicacion · ${locationCoordinates.lat.toFixed(4)}, ${locationCoordinates.lon.toFixed(4)}`
+				? locationName
+					? `Vista de ubicacion · ${locationName}`
 					: "Vista de ubicacion"
 				: linkClassification.kind === "reel"
 					? "Contenido corto"

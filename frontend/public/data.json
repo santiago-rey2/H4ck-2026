@@ -1,0 +1,192 @@
+{
+  "items": [
+    {
+      "id": 1,
+      "texto": "WiFi_casa_2024@",
+      "tags": ["wifi", "contraseña", "casa"],
+      "formato": "dato",
+      "fecha": "2026-02-28T10:30:00Z"
+    },
+    {
+      "id": 5,
+      "texto": "Hoy tuve una idea brillante para el proyecto. Podríamos implementar un sistema de notificaciones en tiempo real usando WebSockets. Esto mejoraría muchísimo la experiencia del usuario y nos daría una ventaja competitiva. Tengo que investigar más sobre Socket.io y ver cómo integrarlo con nuestro backend actual.",
+      "tags": ["ideas", "proyecto", "desarrollo", "websockets"],
+      "formato": "nota",
+      "fecha": "2026-02-27T11:00:00Z"
+    },
+    {
+      "id": 2,
+      "texto": "12345678Z",
+      "tags": ["dni", "identificación", "personal"],
+      "formato": "dato",
+      "fecha": "2026-02-28T09:15:00Z"
+    },
+    {
+      "id": 17,
+      "texto": "https://github.com",
+      "tags": ["desarrollo", "código", "github"],
+      "formato": "link",
+      "fecha": "2026-02-21T16:45:00Z",
+      "title": "GitHub: Where the world builds software",
+      "description": "GitHub is where over 100 million developers shape the future of software, together",
+      "image": "https://github.githubassets.com/images/modules/open_graph/github-mark.png"
+    },
+    {
+      "id": 3,
+      "texto": "MAD-2847-BXL",
+      "tags": ["matrícula", "coche", "vehículo"],
+      "formato": "dato",
+      "fecha": "2026-02-27T19:45:00Z"
+    },
+    {
+      "id": 9,
+      "texto": "Recordatorio importante: La reunión con el equipo de diseño es el próximo martes a las 10:00 AM. Necesito preparar la presentación del nuevo dashboard y revisar los wireframes que me enviaron la semana pasada. También tengo que coordinar con el backend para verificar los endpoints de la API.",
+      "tags": ["reunión", "trabajo", "importante", "diseño"],
+      "formato": "nota",
+      "fecha": "2026-02-25T15:20:00Z"
+    },
+    {
+      "id": 4,
+      "texto": "P@ssw0rd_Gmail2025",
+      "tags": ["contraseña", "email", "cuenta"],
+      "formato": "dato",
+      "fecha": "2026-02-27T14:20:00Z"
+    },
+    {
+      "id": 18,
+      "texto": "https://developer.mozilla.org",
+      "tags": ["web", "documentación", "mdn"],
+      "formato": "link",
+      "fecha": "2026-02-21T14:20:00Z",
+      "title": "MDN Web Docs",
+      "description": "Resources for developers, by developers. The most comprehensive resource for HTML, CSS and JavaScript",
+      "image": "https://developer.mozilla.org/mdn_social_share.png"
+    },
+    {
+      "id": 6,
+      "texto": "SecureWifi#2026!",
+      "tags": ["wifi", "trabajo", "contraseña"],
+      "formato": "dato",
+      "fecha": "2026-02-26T16:30:00Z"
+    },
+    {
+      "id": 13,
+      "texto": "Lista de compras para la semana: Necesito comprar leche (la desnatada que me gusta), pan integral, huevos, tomates, lechuga, pollo, arroz, pasta, aceite de oliva y algunas latas de atún. También tengo que pasar por la farmacia a recoger la receta del médico.",
+      "tags": ["compras", "casa", "personal", "lista"],
+      "formato": "nota",
+      "fecha": "2026-02-24T10:00:00Z"
+    },
+    {
+      "id": 7,
+      "texto": "45678912B",
+      "tags": ["dni", "hermano", "familia"],
+      "formato": "dato",
+      "fecha": "2026-02-26T13:00:00Z"
+    },
+    {
+      "id": 19,
+      "texto": "https://react.dev",
+      "tags": ["react", "javascript", "frontend"],
+      "formato": "link",
+      "fecha": "2026-02-20T11:30:00Z",
+      "title": "React",
+      "description": "The library for web and native user interfaces. Build user interfaces from components",
+      "image": "https://react.dev/images/og-home.png"
+    },
+    {
+      "id": 8,
+      "texto": "Netflix_Access123",
+      "tags": ["contraseña", "streaming", "cuenta"],
+      "formato": "dato",
+      "fecha": "2026-02-26T08:45:00Z"
+    },
+    {
+      "id": 15,
+      "texto": "He estado pensando en cambiar de carrera profesional. La programación me apasiona, pero últimamente siento que necesito explorar otras áreas como el diseño UX/UI o quizás product management. Debería hablar con algunos profesionales de esas áreas para entender mejor el día a día y las oportunidades de crecimiento.",
+      "tags": ["reflexión", "carrera", "personal", "futuro"],
+      "formato": "nota",
+      "fecha": "2026-02-23T14:20:00Z"
+    },
+    {
+      "id": 10,
+      "texto": "BCN-7392-KRM",
+      "tags": ["matrícula", "moto", "vehículo"],
+      "formato": "dato",
+      "fecha": "2026-02-25T12:10:00Z"
+    },
+    {
+      "id": 20,
+      "texto": "https://tailwindcss.com",
+      "tags": ["tailwind", "css", "diseño"],
+      "formato": "link",
+      "fecha": "2026-02-20T09:15:00Z",
+      "title": "Tailwind CSS",
+      "description": "Rapidly build modern websites without ever leaving your HTML. A utility-first CSS framework",
+      "image": "https://tailwindcss.com/_next/static/media/social-square-cyan.db4f9b52.jpg"
+    },
+    {
+      "id": 11,
+      "texto": "VAL-5621-PQR",
+      "tags": ["matrícula", "trabajo", "vehículo"],
+      "formato": "dato",
+      "fecha": "2026-02-25T09:00:00Z"
+    },
+    {
+      "id": 12,
+      "texto": "BankPass_Secure2024#",
+      "tags": ["contraseña", "banco", "importante"],
+      "formato": "dato",
+      "fecha": "2026-02-24T17:35:00Z"
+    },
+    {
+      "id": 14,
+      "texto": "87654321A",
+      "tags": ["dni", "pareja", "personal"],
+      "formato": "dato",
+      "fecha": "2026-02-23T18:30:00Z"
+    },
+    {
+      "id": 16,
+      "texto": "GymAccess_2026!",
+      "tags": ["contraseña", "gimnasio", "deporte"],
+      "formato": "dato",
+      "fecha": "2026-02-22T09:00:00Z"
+    },
+    {
+      "id": 21,
+      "texto": "Reunión de equipo en sala 5",
+      "tags": ["trabajo", "reunión", "equipo"],
+      "formato": "evento",
+      "fecha": "2026-02-28T15:00:00Z",
+      "eventDate": "2026-03-01",
+      "eventTime": "10:00"
+    },
+    {
+      "id": 22,
+      "texto": "Deadline entrega proyecto cliente",
+      "tags": ["trabajo", "deadline", "proyecto"],
+      "formato": "evento",
+      "fecha": "2026-02-27T09:00:00Z",
+      "eventDate": "2026-03-05",
+      "eventTime": "17:00"
+    },
+    {
+      "id": 23,
+      "texto": "Conferencia de tecnología en Madrid",
+      "tags": ["conferencia", "tech", "aprendizaje"],
+      "formato": "evento",
+      "fecha": "2026-02-26T11:00:00Z",
+      "eventDate": "2026-03-10",
+      "eventTime": "09:00"
+    },
+    {
+      "id": 24,
+      "texto": "Cena con el equipo de diseño",
+      "tags": ["social", "equipo", "diseño"],
+      "formato": "evento",
+      "fecha": "2026-02-28T14:30:00Z",
+      "eventDate": "2026-02-28",
+      "eventTime": "19:30"
+    }
+  ]
+}

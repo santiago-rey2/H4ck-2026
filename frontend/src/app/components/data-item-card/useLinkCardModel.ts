@@ -7,14 +7,19 @@ import type { DataItem } from "@/app/types/data";
 import {
 	buildOpenStreetMapEmbedUrl,
 	buildOpenStreetMapTileSnapshotUrls,
+	buildSpotifyEmbedUrl,
+	buildVideoEmbedUrl,
 	buildYouTubeEmbedUrl,
+	buildYouTubePlaylistEmbedUrl,
 	classifyLinkTarget,
 	extractLocationName,
+	extractSpotifyResource,
 	extractYouTubeVideoId,
 	getDisplayHostname,
 	isConsentGatewayUrl,
 	isConsentLikeTitle,
 	normalizeLinkTarget,
+	type SpotifyResourceType,
 } from "@/app/utils/link-classifier";
 import {
 	LINK_KIND_ICONS,
@@ -27,8 +32,31 @@ import type { LinkMediaCandidate, LinkMediaKind } from "./types";
 const GENERIC_SEED_LINK_DESCRIPTION_PREFIX =
 	"Referencia externa para pruebas de formato link.";
 
+const SPOTIFY_RESOURCE_HINTS: Record<SpotifyResourceType, string> = {
+	track: "Cancion",
+	album: "Album",
+	playlist: "Playlist",
+	artist: "Artista",
+	show: "Podcast",
+	episode: "Episodio",
+};
+
+const SPOTIFY_TALL_EMBED_TYPES = new Set<SpotifyResourceType>([
+	"album",
+	"playlist",
+	"artist",
+	"show",
+]);
+
 export interface LinkCardModel {
-	linkKind: "web" | "video" | "location" | "reel" | "social";
+	linkKind:
+		| "web"
+		| "video"
+		| "youtube_playlist"
+		| "location"
+		| "reel"
+		| "social"
+		| "spotify";
 	styles: (typeof LINK_KIND_STYLES)[keyof typeof LINK_KIND_STYLES];
 	linkKindLabel: string;
 	LinkKindIcon: (typeof LINK_KIND_ICONS)[keyof typeof LINK_KIND_ICONS];
@@ -42,6 +70,10 @@ export interface LinkCardModel {
 	showPlayOverlay: boolean;
 	showLocationPlaceholder: boolean;
 	showSocialPlaceholder: boolean;
+	spotifyResourceType: SpotifyResourceType | null;
+	showYouTubePlaylistPlaceholder: boolean;
+	inlinePlayerEmbedUrl: string | null;
+	inlinePlayerHeightClass: string | null;
 	mediaHeightClass: string;
 	hasLocationSnapshot: boolean;
 	locationSnapshotTiles: string[] | null;
@@ -67,7 +99,12 @@ export function useLinkCardModel(item: DataItem): LinkCardModel {
 	const { data: linkPreview, isLoading: isLinkPreviewLoading } =
 		useItemLinkPreview(item.id, true);
 
-	const fallbackLinkUrl = normalizeLinkTarget(item.texto);
+	const spotifyResourceFromRawValue = extractSpotifyResource(item.texto);
+	const spotifyCanonicalUrl = spotifyResourceFromRawValue
+		? `https://open.spotify.com/${spotifyResourceFromRawValue.type}/${spotifyResourceFromRawValue.id}`
+		: null;
+	const fallbackLinkUrl =
+		normalizeLinkTarget(item.texto) ?? spotifyCanonicalUrl;
 	const previewSourceUrl = normalizeLinkTarget(linkPreview?.url ?? null);
 	const rawPreviewTarget = normalizeLinkTarget(
 		linkPreview?.final_url ?? linkPreview?.url ?? item.texto,
@@ -83,6 +120,10 @@ export function useLinkCardModel(item: DataItem): LinkCardModel {
 		rawPreviewTarget;
 	const externalLinkUrl =
 		fallbackLinkUrl ?? previewSourceUrl ?? rawPreviewTarget ?? linkTargetUrl;
+	const primaryEmbedSource =
+		externalLinkUrl ?? fallbackLinkUrl ?? previewSourceUrl ?? item.texto;
+	const secondaryEmbedSource =
+		resolvedPreviewTarget ?? previewSourceUrl ?? rawPreviewTarget ?? item.texto;
 
 	const rawLinkClassification = classifyLinkTarget(item.texto);
 	const resolvedLinkClassification = classifyLinkTarget(
@@ -104,19 +145,55 @@ export function useLinkCardModel(item: DataItem): LinkCardModel {
 					externalLinkUrl ?? linkPreview?.url ?? item.texto,
 				)
 			: null;
-	const youtubeEmbedUrl =
+	const providerEmbedUrl =
 		linkClassification.kind === "video" || linkClassification.kind === "reel"
-			? buildYouTubeEmbedUrl(
+			? buildVideoEmbedUrl(
 					resolvedPreviewTarget ??
 						previewSourceUrl ??
 						externalLinkUrl ??
 						item.texto,
 				)
 			: null;
+	const youTubeVideoEmbedUrl =
+		linkClassification.kind === "video" || linkClassification.kind === "reel"
+			? (buildYouTubeEmbedUrl(primaryEmbedSource) ??
+				buildYouTubeEmbedUrl(secondaryEmbedSource))
+			: null;
+	const spotifyEmbedUrl =
+		linkClassification.kind === "spotify"
+			? (buildSpotifyEmbedUrl(primaryEmbedSource) ??
+				buildSpotifyEmbedUrl(secondaryEmbedSource))
+			: null;
+	const spotifyResource =
+		linkClassification.kind === "spotify"
+			? (extractSpotifyResource(primaryEmbedSource) ??
+				extractSpotifyResource(secondaryEmbedSource))
+			: null;
+	const youTubePlaylistEmbedUrl =
+		linkClassification.kind === "youtube_playlist"
+			? (buildYouTubePlaylistEmbedUrl(primaryEmbedSource) ??
+				buildYouTubePlaylistEmbedUrl(secondaryEmbedSource))
+			: null;
+	const inlinePlayerEmbedUrl =
+		linkClassification.kind === "spotify"
+			? spotifyEmbedUrl
+			: linkClassification.kind === "youtube_playlist"
+				? youTubePlaylistEmbedUrl
+				: null;
+	const usesInlineEmbedMode =
+		linkClassification.kind === "spotify" ||
+		linkClassification.kind === "youtube_playlist";
 	const viewerIframeUrl =
 		linkClassification.kind === "location"
 			? (locationEmbedUrl ?? linkTargetUrl)
-			: (youtubeEmbedUrl ?? linkTargetUrl);
+			: linkClassification.kind === "video" ||
+					linkClassification.kind === "reel"
+				? (youTubeVideoEmbedUrl ?? providerEmbedUrl ?? linkTargetUrl)
+				: usesInlineEmbedMode
+					? inlinePlayerEmbedUrl
+						? null
+						: (linkTargetUrl ?? externalLinkUrl ?? fallbackLinkUrl)
+					: (providerEmbedUrl ?? linkTargetUrl);
 
 	const styles = LINK_KIND_STYLES[linkClassification.kind];
 	const linkKindLabel = LINK_KIND_LABELS[linkClassification.kind];
@@ -261,28 +338,54 @@ export function useLinkCardModel(item: DataItem): LinkCardModel {
 
 	const linkKindHint =
 		linkClassification.kind === "video"
-			? "Contenido audiovisual"
-			: linkClassification.kind === "location"
-				? locationName
-					? `Vista de ubicacion · ${locationName}`
-					: "Vista de ubicacion"
-				: linkClassification.kind === "reel"
-					? "Contenido corto"
-					: linkClassification.kind === "social"
-						? "Publicacion social"
-						: "Sitio o documentacion";
+			? youTubeVideoEmbedUrl
+				? "Video de YouTube"
+				: "Contenido audiovisual"
+			: linkClassification.kind === "youtube_playlist"
+				? "Playlist de YouTube"
+				: linkClassification.kind === "spotify"
+					? spotifyResource
+						? `Spotify · ${SPOTIFY_RESOURCE_HINTS[spotifyResource.type]}`
+						: "Musica o podcast"
+					: linkClassification.kind === "location"
+						? locationName
+							? `Vista de ubicacion · ${locationName}`
+							: "Vista de ubicacion"
+						: linkClassification.kind === "reel"
+							? youTubeVideoEmbedUrl
+								? "Short de YouTube"
+								: "Contenido corto"
+							: linkClassification.kind === "social"
+								? "Publicacion social"
+								: "Sitio o documentacion";
 
 	const showPlayOverlay =
 		linkClassification.kind === "video" || linkClassification.kind === "reel";
 	const showLocationPlaceholder =
 		linkClassification.kind === "location" && !hasLocationSnapshot;
 	const showSocialPlaceholder = linkClassification.kind === "social";
+	const showYouTubePlaylistPlaceholder =
+		linkClassification.kind === "youtube_playlist" && !inlinePlayerEmbedUrl;
+	const inlinePlayerHeightClass =
+		linkClassification.kind === "spotify"
+			? inlinePlayerEmbedUrl &&
+				spotifyResource &&
+				SPOTIFY_TALL_EMBED_TYPES.has(spotifyResource.type)
+				? "h-[352px]"
+				: "h-[152px]"
+			: linkClassification.kind === "youtube_playlist"
+				? "h-[312px]"
+				: null;
 	const mediaHeightClass =
 		linkClassification.kind === "reel"
 			? "h-72 sm:h-80"
 			: linkClassification.kind === "video"
 				? "h-48 sm:h-56"
-				: "h-36 sm:h-44";
+				: linkClassification.kind === "youtube_playlist"
+					? "h-40 sm:h-44"
+					: linkClassification.kind === "spotify"
+						? "h-36 sm:h-40"
+						: "h-36 sm:h-44";
 
 	useEffect(() => {
 		if (!mediaCandidateSignature) {
@@ -374,6 +477,10 @@ export function useLinkCardModel(item: DataItem): LinkCardModel {
 		showPlayOverlay,
 		showLocationPlaceholder,
 		showSocialPlaceholder,
+		spotifyResourceType: spotifyResource?.type ?? null,
+		showYouTubePlaylistPlaceholder,
+		inlinePlayerEmbedUrl,
+		inlinePlayerHeightClass,
 		mediaHeightClass,
 		hasLocationSnapshot,
 		locationSnapshotTiles,

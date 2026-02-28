@@ -17,7 +17,9 @@ class Settings(BaseSettings):
     LINK_PREVIEW_USER_AGENT: str = "HackUDC2026-LinkPreview/1.0"
     LINK_PREVIEW_YTDLP_ENABLED: bool = True
     LINK_PREVIEW_YTDLP_SOCKET_TIMEOUT: float = 8.0
-    LINK_PREVIEW_YTDLP_ALLOWED_DOMAINS: str = "youtube.com,youtu.be,vimeo.com,twitch.tv,tiktok.com,x.com,twitter.com,instagram.com"
+    LINK_PREVIEW_YTDLP_ALLOWED_DOMAINS: str = (
+        "youtube.com,youtu.be,twitch.tv,tiktok.com,x.com,twitter.com,instagram.com"
+    )
 
     SEED_ENABLED: bool = False
     SEED_MIN_ITEMS: int = 100

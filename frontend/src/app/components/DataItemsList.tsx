@@ -23,7 +23,10 @@ import {
 	filterDataItems,
 	interleaveItemsByFormat,
 } from "@/app/utils/data-filters";
-import { classifyLinkTarget } from "@/app/utils/link-classifier";
+import {
+	buildYouTubeEmbedUrl,
+	classifyLinkTarget,
+} from "@/app/utils/link-classifier";
 import { Button } from "@/components/ui";
 import { DataItemCard } from "./DataItemCard";
 
@@ -48,11 +51,16 @@ function MasonryCardItem({
 	const frameRef = useRef<number | null>(null);
 	const linkKind =
 		item.formato === "link" ? classifyLinkTarget(item.texto).kind : null;
+	const isYouTubeReel =
+		linkKind === "reel" && Boolean(buildYouTubeEmbedUrl(item.texto));
 	const isWideCard =
 		item.formato === "nota" ||
 		item.formato === "evento" ||
 		linkKind === "video" ||
-		linkKind === "location";
+		linkKind === "location" ||
+		linkKind === "spotify" ||
+		linkKind === "youtube_playlist" ||
+		isYouTubeReel;
 
 	const measureRowSpan = useCallback(() => {
 		const contentNode = contentRef.current;

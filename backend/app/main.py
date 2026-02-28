@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
             category_count = session.exec(select(Category)).first()
             if not category_count:
                 logger.info("Tabla de categorías vacía. Iniciando carga automática...")
-                seed_categories(session)
+                seed_categories()
                 logger.info("✅ Categorías cargadas exitosamente.")
             else:
                 logger.info("Categorías detectadas, saltando carga inicial.")

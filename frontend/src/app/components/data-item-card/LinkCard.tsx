@@ -1,15 +1,5 @@
-import {
-	Clapperboard,
-	ExternalLink,
-	Globe,
-	Loader2,
-	MapPin,
-	MessageCircle,
-	Play,
-	Sparkles,
-} from "lucide-react";
+import { Clapperboard, Globe, MapPin, MessageCircle, Play } from "lucide-react";
 import type { DataItem } from "@/app/types/data";
-import { Badge } from "@/components/ui/badge";
 import { CardFooter } from "./CardFooter";
 import { CardShell } from "./CardShell";
 import { LINK_KIND_ACCENT_BAR } from "./styles";

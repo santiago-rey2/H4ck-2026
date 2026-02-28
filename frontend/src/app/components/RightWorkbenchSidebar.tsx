@@ -1,15 +1,24 @@
 import { useAtom } from "jotai";
-import { Bot, Eraser, MessageCircle, Send, SquarePen } from "lucide-react";
+import {
+	Bot,
+	Eraser,
+	Loader2,
+	MessageCircle,
+	Send,
+	SquarePen,
+} from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
 	chatbotDraftAtom,
 	entryDraftAtom,
 	rightSidebarModeAtom,
 } from "@/app/atoms";
+import { useCreateItemMutation } from "@/app/hooks/useDataItems";
 import { MOTION_SPRING } from "@/app/motion/tokens";
 import { useMotionPreferences } from "@/app/motion/useMotionPreferences";
 import { getViewSwitchVariants } from "@/app/motion/variants";
+import { normalizeLinkTarget } from "@/app/utils/link-classifier";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -19,11 +28,28 @@ interface ChatMessage {
 	content: string;
 }
 
-const ENTRY_TEMPLATES = [
-	"Guardar un dato rapido",
-	"Escribir una nota corta",
-	"Pegar un link importante",
-];
+type CreatableItemFormat = "dato" | "nota" | "link";
+
+interface EntryFeedback {
+	tone: "success" | "error";
+	message: string;
+}
+
+const NOTE_LENGTH_THRESHOLD = 150;
+
+const CREATABLE_FORMAT_LABELS: Record<CreatableItemFormat, string> = {
+	dato: "Dato",
+	nota: "Nota",
+	link: "Link",
+};
+
+const CREATABLE_FORMAT_HINTS: Record<CreatableItemFormat, string> = {
+	dato: "Texto corto. Se guardara como dato.",
+	nota: "Texto largo. Se guardara como nota para lectura mas comoda en el feed.",
+	link: "URL valida. Se guardara como link y se intentara generar preview automaticamente.",
+};
+
+const ENTRY_TEMPLATES = ["Dato rapido: ", "Nota larga: ", "https://"];
 
 const INITIAL_CHAT_MESSAGES: ChatMessage[] = [
 	{
@@ -44,25 +70,94 @@ interface RightWorkbenchSidebarProps {
 	surface?: "default" | "drawer" | "tablet";
 }
 
+function detectCreatableFormat(value: string): CreatableItemFormat | null {
+	const trimmedValue = value.trim();
+	if (!trimmedValue) {
+		return null;
+	}
+
+	if (normalizeLinkTarget(trimmedValue)) {
+		return "link";
+	}
+
+	return trimmedValue.length >= NOTE_LENGTH_THRESHOLD ? "nota" : "dato";
+}
+
+function normalizeCreatedFormat(format: string): CreatableItemFormat {
+	if (format === "link" || format === "nota") {
+		return format;
+	}
+
+	return "dato";
+}
+
 export function RightWorkbenchSidebar({
 	className,
 	surface = "default",
 }: RightWorkbenchSidebarProps) {
 	const { prefersReducedMotion, motionEnabled } = useMotionPreferences();
+	const createItemMutation = useCreateItemMutation();
 	const [mode, setMode] = useAtom(rightSidebarModeAtom);
 	const [entryDraft, setEntryDraft] = useAtom(entryDraftAtom);
 	const [chatbotDraft, setChatbotDraft] = useAtom(chatbotDraftAtom);
 	const [messages, setMessages] = useState<ChatMessage[]>(
 		INITIAL_CHAT_MESSAGES,
 	);
+	const [entryFeedback, setEntryFeedback] = useState<EntryFeedback | null>(
+		null,
+	);
 	const modeContentVariants = getViewSwitchVariants(prefersReducedMotion);
 
+	const trimmedEntryDraft = entryDraft.trim();
+	const detectedFormat = useMemo(
+		() => detectCreatableFormat(trimmedEntryDraft),
+		[trimmedEntryDraft],
+	);
+	const canSaveEntry =
+		trimmedEntryDraft.length > 0 && !createItemMutation.isPending;
+	const hasEntryFormValues = trimmedEntryDraft.length > 0;
+
 	const appendTemplate = (template: string) => {
+		setEntryFeedback(null);
 		setEntryDraft((currentValue) =>
 			currentValue.trim().length > 0
-				? `${currentValue}\n- ${template}`
-				: `- ${template}`,
+				? `${currentValue}\n${template}`
+				: template,
 		);
+	};
+
+	const clearEntryComposer = () => {
+		setEntryDraft("");
+		setEntryFeedback(null);
+	};
+
+	const submitEntry = async () => {
+		if (!trimmedEntryDraft || createItemMutation.isPending) {
+			return;
+		}
+
+		setEntryFeedback(null);
+
+		try {
+			const normalizedLink = normalizeLinkTarget(trimmedEntryDraft);
+			const createdItem = await createItemMutation.mutateAsync({
+				name: normalizedLink ?? trimmedEntryDraft,
+			});
+
+			const createdFormat = normalizeCreatedFormat(createdItem.formato);
+
+			clearEntryComposer();
+			setEntryFeedback({
+				tone: "success",
+				message: `Item guardado como ${CREATABLE_FORMAT_LABELS[createdFormat]}.`,
+			});
+		} catch {
+			setEntryFeedback({
+				tone: "error",
+				message:
+					"No se pudo guardar el item. Revisa el modal de error para mas detalle.",
+			});
+		}
 	};
 
 	const submitChatMessage = () => {
@@ -169,16 +264,44 @@ export function RightWorkbenchSidebar({
 								Introducir informacion
 							</p>
 							<p className="text-xs text-slate-600 dark:text-slate-400">
-								Panel de captura manual. Solo interfaz por ahora.
+								Crea items reales en el feed (dato, nota o link). Las categorias
+								se asignan automaticamente desde el backend.
 							</p>
 						</div>
 
 						<textarea
 							value={entryDraft}
-							onChange={(event) => setEntryDraft(event.target.value)}
+							onChange={(event) => {
+								setEntryDraft(event.target.value);
+								if (entryFeedback) {
+									setEntryFeedback(null);
+								}
+							}}
+							onKeyDown={(event) => {
+								if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+									event.preventDefault();
+									void submitEntry();
+								}
+							}}
 							placeholder="Escribe aqui la informacion que quieres guardar..."
 							className="w-full min-h-[220px] resize-y rounded-2xl border border-slate-300/80 bg-white/80 p-4 text-sm leading-relaxed text-slate-900 dark:text-slate-100 dark:bg-slate-900/70 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500"
 						/>
+
+						<div className="rounded-xl border border-slate-300/70 bg-white/80 dark:border-slate-700 dark:bg-slate-900/70 px-3 py-2.5 space-y-1.5">
+							<p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+								Formato detectado
+							</p>
+							<p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+								{detectedFormat
+									? CREATABLE_FORMAT_LABELS[detectedFormat]
+									: "Sin contenido"}
+							</p>
+							<p className="text-xs text-slate-600 dark:text-slate-400">
+								{detectedFormat
+									? CREATABLE_FORMAT_HINTS[detectedFormat]
+									: "Escribe contenido para ver como se clasificara antes de guardar."}
+							</p>
+						</div>
 
 						<div className="space-y-2">
 							<p className="text-xs font-medium text-slate-600 dark:text-slate-400">
@@ -202,19 +325,45 @@ export function RightWorkbenchSidebar({
 							<Button
 								type="button"
 								variant="outline"
-								onClick={() => setEntryDraft("")}
-								disabled={entryDraft.trim().length === 0}
+								onClick={clearEntryComposer}
+								disabled={!hasEntryFormValues || createItemMutation.isPending}
 							>
 								<Eraser className="size-3.5" />
 								Limpiar
 							</Button>
 							<Button
 								type="button"
+								onClick={() => {
+									void submitEntry();
+								}}
+								disabled={!canSaveEntry}
 								className="bg-amber-600 hover:bg-amber-700 text-white"
 							>
-								Guardar (UI)
+								{createItemMutation.isPending ? (
+									<Loader2 className="size-3.5 animate-spin" />
+								) : (
+									<Send className="size-3.5" />
+								)}
+								{createItemMutation.isPending ? "Guardando..." : "Guardar item"}
 							</Button>
 						</div>
+
+						{entryFeedback ? (
+							<div
+								className={cn(
+									"rounded-xl border px-3 py-2 text-xs font-medium",
+									entryFeedback.tone === "success"
+										? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200"
+										: "border-rose-300 bg-rose-50 text-rose-800 dark:border-rose-700 dark:bg-rose-950/40 dark:text-rose-200",
+								)}
+							>
+								{entryFeedback.message}
+							</div>
+						) : (
+							<p className="text-[11px] text-slate-500 dark:text-slate-400">
+								Tip: usa Ctrl/Cmd + Enter para guardar mas rapido.
+							</p>
+						)}
 					</motion.div>
 				) : (
 					<motion.div

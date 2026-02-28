@@ -31,6 +31,12 @@ Link preview behavior:
 
 - `GET /items/{item_id}/link-preview` retries against the domain homepage when the stored URL returns upstream `404`, improving resilience for stale links.
 
+Frontend item creation:
+
+- The right sidebar `Entrada` panel now creates real items via `POST /items/`.
+- Current UI scope supports `dato`, `nota`, and `link` (auto-detected from content).
+- Categories/tags are assigned automatically by the backend.
+
 Stop:
 
 ```bash

@@ -1,12 +1,12 @@
+import whisper
 import os
 import json
-
 from dotenv import load_dotenv
 from google import genai
 from typing import List
-
 from sqlmodel import Session
 
+from app.model.enums import ItemFormat
 from app.service.category_service import category_service
 
 
@@ -22,6 +22,8 @@ if GEMINI_API_KEY:
         print(f"⚠️ Error al inicializar el cliente de IA: {e}")
 else:
     print("⚠️ ADVERTENCIA: GEMINI_API_KEY no encontrada. Categorización automática desactivada.")
+
+model_whisper = whisper.load_model("base")
 
 def get_category_names_for_ai(db: Session) -> List[str]:
     categories = category_service.get_multi(db, limit=100)
@@ -57,3 +59,44 @@ async def classify_content_semantically(content: str,format: str, db: Session):
     except Exception as e:
         print(f"Error en clasificación IA: {e}")
         return {"categories": []}
+
+
+async def process_audio_to_text_and_ai(file_path: str, db: Session):
+    print("🎙️ Transcribiendo audio localmente con Whisper...")
+    result_whisper = model_whisper.transcribe(file_path, fp16=False)
+    raw_text = result_whisper["text"].strip()
+
+    if not raw_text:
+        return {"name": "Audio vacío", "format": "SHORT_TEXT", "categories": []}
+
+    available_categories = get_category_names_for_ai(db)
+
+    prompt = f"""
+    He transcrito un audio. El texto es: "{raw_text}"
+
+    Tu tarea:
+    1. Ajusta el texto para que sea legible (corrige errores de puntuación).
+    2. Determina si es un RECORDATORIO, una NOTA o una TAREA o MUSICA o un AUDIO :{ItemFormat}.
+    3. Clasifícalo en estas categorías: {available_categories}
+
+    Responde ÚNICAMENTE en JSON:
+    {{
+        "refined_text": "texto corregido",
+        "format": "RECORDATORIO/NOTA/TAREA",
+        "categories": ["Cat1", "Cat2"]
+    }}
+    """
+
+    try:
+        from app.service.ia_service import client
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
+
+        import re
+        match = re.search(r'\{.*\}', response.text, re.DOTALL)
+        return json.loads(match.group(0))
+    except Exception as e:
+        print(f"⚠️ Error en refinamiento IA, usando texto crudo: {e}")
+        return {"refined_text": raw_text, "format": "NOTA", "categories": []}

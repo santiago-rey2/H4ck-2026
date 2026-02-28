@@ -7,3 +7,8 @@ class ItemFormat(str, Enum):
     LINK = auto()
     SHORT_TEXT = auto()
     LONG_TEXT = auto()
+    NOTA= auto()
+    RECORDATORIO = auto()
+    TAREA = auto()
+    MUSICA = auto()
+    AUDIO = auto()

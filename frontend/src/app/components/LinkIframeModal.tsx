@@ -188,6 +188,7 @@ export function LinkIframeModal() {
 								src={iframeUrl}
 								title={`Preview de ${title}`}
 								className="h-full w-full border-0 bg-white"
+								allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
 								referrerPolicy="strict-origin-when-cross-origin"
 								onLoad={handleFrameLoad}
 								onError={handleFrameError}

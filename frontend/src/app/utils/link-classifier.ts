@@ -1,4 +1,11 @@
-export type LinkCardKind = "web" | "video" | "location" | "reel" | "social";
+export type LinkCardKind =
+	| "web"
+	| "video"
+	| "youtube_playlist"
+	| "location"
+	| "reel"
+	| "social"
+	| "spotify";
 
 export interface LinkClassification {
 	kind: LinkCardKind;
@@ -10,6 +17,19 @@ export interface LinkClassification {
 export interface LocationCoordinates {
 	lat: number;
 	lon: number;
+}
+
+export type SpotifyResourceType =
+	| "track"
+	| "album"
+	| "playlist"
+	| "artist"
+	| "show"
+	| "episode";
+
+export interface SpotifyResource {
+	type: SpotifyResourceType;
+	id: string;
 }
 
 const CONSENT_GATEWAY_DOMAINS = ["consent.google.com", "consent.youtube.com"];
@@ -38,10 +58,37 @@ const SOCIAL_DOMAINS = [
 const VIDEO_DOMAINS = [
 	"youtube.com",
 	"youtu.be",
-	"vimeo.com",
 	"twitch.tv",
 	"dailymotion.com",
 ];
+
+const SPOTIFY_DOMAINS = ["open.spotify.com"];
+
+const SPOTIFY_RESOURCE_TYPES = new Set<SpotifyResourceType>([
+	"track",
+	"album",
+	"playlist",
+	"artist",
+	"show",
+	"episode",
+]);
+
+const TWITCH_RESERVED_PATH_SEGMENTS = new Set([
+	"directory",
+	"downloads",
+	"inventory",
+	"jobs",
+	"messages",
+	"payments",
+	"p",
+	"search",
+	"settings",
+	"store",
+	"subscriptions",
+	"turbo",
+	"videos",
+	"wallet",
+]);
 
 const LOCATION_DOMAINS = [
 	"maps.google.com",
@@ -378,9 +425,6 @@ function getPlatformByHostname(hostname: string): string | null {
 	) {
 		return "YouTube";
 	}
-	if (hostMatches(hostname, "vimeo.com")) {
-		return "Vimeo";
-	}
 	if (hostMatches(hostname, "twitch.tv")) {
 		return "Twitch";
 	}
@@ -401,6 +445,9 @@ function getPlatformByHostname(hostname: string): string | null {
 	}
 	if (hostMatches(hostname, "linkedin.com")) {
 		return "LinkedIn";
+	}
+	if (hostMatches(hostname, "spotify.com")) {
+		return "Spotify";
 	}
 	if (
 		hostMatches(hostname, "maps.google.com") ||
@@ -484,6 +531,25 @@ function isReelUrl(url: URL): boolean {
 	return false;
 }
 
+function isYouTubePlaylistUrl(url: URL): boolean {
+	const hostname = url.hostname.toLowerCase();
+	if (!hostMatches(hostname, "youtube.com")) {
+		return false;
+	}
+
+	const pathname = url.pathname.toLowerCase();
+	if (
+		pathname.startsWith("/playlist") ||
+		pathname.startsWith("/embed/videoseries")
+	) {
+		return (
+			url.searchParams.has("list") || pathname.startsWith("/embed/videoseries")
+		);
+	}
+
+	return url.searchParams.has("list");
+}
+
 function isVideoUrl(url: URL): boolean {
 	const hostname = url.hostname.toLowerCase();
 	const pathname = url.pathname.toLowerCase();
@@ -501,10 +567,7 @@ function isVideoUrl(url: URL): boolean {
 		return pathname.length > 1;
 	}
 
-	if (
-		hostMatches(hostname, "vimeo.com") ||
-		hostMatches(hostname, "twitch.tv")
-	) {
+	if (hostMatches(hostname, "twitch.tv")) {
 		return true;
 	}
 
@@ -514,6 +577,158 @@ function isVideoUrl(url: URL): boolean {
 function isSocialUrl(url: URL): boolean {
 	const hostname = url.hostname.toLowerCase();
 	return hostMatchesAny(hostname, SOCIAL_DOMAINS);
+}
+
+function isSpotifyResourceType(value: string): value is SpotifyResourceType {
+	return SPOTIFY_RESOURCE_TYPES.has(value as SpotifyResourceType);
+}
+
+function sanitizeSpotifyResourceId(
+	rawValue: string | null | undefined,
+): string | null {
+	const candidate = rawValue?.trim();
+	if (!candidate) {
+		return null;
+	}
+
+	if (!/^[A-Za-z0-9]{8,64}$/.test(candidate)) {
+		return null;
+	}
+
+	return candidate;
+}
+
+function parseSpotifyResourceFromUri(rawValue: string): SpotifyResource | null {
+	const compactValue = rawValue.trim();
+	if (!compactValue.toLowerCase().startsWith("spotify:")) {
+		return null;
+	}
+
+	const segments = compactValue.split(":").map((segment) => segment.trim());
+	if (segments.length < 3) {
+		return null;
+	}
+
+	const firstType = segments[1]?.toLowerCase() ?? "";
+	if (firstType === "user") {
+		const playlistMarker = segments[3]?.toLowerCase() ?? "";
+		const playlistId = sanitizeSpotifyResourceId(segments[4]);
+		if (playlistMarker === "playlist" && playlistId) {
+			return {
+				type: "playlist",
+				id: playlistId,
+			};
+		}
+
+		return null;
+	}
+
+	if (!isSpotifyResourceType(firstType)) {
+		return null;
+	}
+
+	const resourceId = sanitizeSpotifyResourceId(segments[2]);
+	if (!resourceId) {
+		return null;
+	}
+
+	return {
+		type: firstType,
+		id: resourceId,
+	};
+}
+
+function parseSpotifyResourceFromUrl(url: URL): SpotifyResource | null {
+	const hostname = url.hostname.toLowerCase();
+	if (!hostMatchesAny(hostname, SPOTIFY_DOMAINS)) {
+		return null;
+	}
+
+	const pathSegments = url.pathname
+		.split("/")
+		.filter(Boolean)
+		.map((segment) => decodeUriComponentSafe(segment));
+	if (pathSegments.length < 2) {
+		return null;
+	}
+
+	let cursor = 0;
+	if (/^intl-[a-z]{2}$/i.test(pathSegments[cursor] ?? "")) {
+		cursor += 1;
+	}
+
+	if ((pathSegments[cursor] ?? "").toLowerCase() === "embed") {
+		cursor += 1;
+	}
+
+	const firstSegment = (pathSegments[cursor] ?? "").toLowerCase();
+	if (firstSegment === "user") {
+		const legacyPlaylistMarker = (pathSegments[cursor + 2] ?? "").toLowerCase();
+		const legacyPlaylistId = sanitizeSpotifyResourceId(
+			pathSegments[cursor + 3],
+		);
+		if (legacyPlaylistMarker === "playlist" && legacyPlaylistId) {
+			return {
+				type: "playlist",
+				id: legacyPlaylistId,
+			};
+		}
+
+		return null;
+	}
+
+	const resourceType = firstSegment;
+	const resourceId = sanitizeSpotifyResourceId(pathSegments[cursor + 1]);
+	if (!resourceType || !resourceId) {
+		return null;
+	}
+
+	if (!isSpotifyResourceType(resourceType)) {
+		return null;
+	}
+
+	return {
+		type: resourceType,
+		id: resourceId,
+	};
+}
+
+function parseSpotifyResourceFromRaw(
+	rawValue: string | null | undefined,
+): SpotifyResource | null {
+	const trimmedValue = rawValue?.trim();
+	if (!trimmedValue) {
+		return null;
+	}
+
+	const fromUri = parseSpotifyResourceFromUri(trimmedValue);
+	if (fromUri) {
+		return fromUri;
+	}
+
+	const normalized = normalizeLinkTarget(trimmedValue);
+	if (!normalized) {
+		return null;
+	}
+
+	let parsedUrl: URL;
+	try {
+		parsedUrl = new URL(normalized);
+	} catch {
+		return null;
+	}
+
+	return parseSpotifyResourceFromUrl(parsedUrl);
+}
+
+export function extractSpotifyResource(
+	rawValue: string | null | undefined,
+): SpotifyResource | null {
+	return parseSpotifyResourceFromRaw(rawValue);
+}
+
+function isSpotifyUrl(url: URL): boolean {
+	return parseSpotifyResourceFromUrl(url) !== null;
 }
 
 export function normalizeLinkTarget(
@@ -649,7 +864,7 @@ export function buildYouTubeEmbedUrl(
 
 	const videoId = extractYouTubeVideoId(normalized);
 	if (!videoId) {
-		return null;
+		return buildYouTubePlaylistEmbedUrl(normalized);
 	}
 
 	const embedUrl = new URL(`https://www.youtube.com/embed/${videoId}`);
@@ -666,6 +881,185 @@ export function buildYouTubeEmbedUrl(
 		const listIndex = parsedUrl.searchParams.get("index")?.trim();
 		if (listIndex && /^\d+$/.test(listIndex)) {
 			embedUrl.searchParams.set("index", listIndex);
+		}
+	}
+
+	return embedUrl.toString();
+}
+
+export function buildYouTubePlaylistEmbedUrl(
+	rawValue: string | null | undefined,
+): string | null {
+	const normalized = normalizeLinkTarget(rawValue);
+	if (!normalized) {
+		return null;
+	}
+
+	let parsedUrl: URL;
+	try {
+		parsedUrl = new URL(normalized);
+	} catch {
+		return null;
+	}
+
+	if (!isYouTubePlaylistUrl(parsedUrl)) {
+		return null;
+	}
+
+	const listId = parsedUrl.searchParams.get("list")?.trim();
+	if (!listId) {
+		return null;
+	}
+
+	const embedUrl = new URL("https://www.youtube.com/embed/videoseries");
+	embedUrl.searchParams.set("list", listId);
+
+	const listIndex = parsedUrl.searchParams.get("index")?.trim();
+	if (listIndex && /^\d+$/.test(listIndex)) {
+		embedUrl.searchParams.set("index", listIndex);
+	}
+
+	const startSeconds = extractYouTubeStartSeconds(parsedUrl);
+	if (startSeconds && startSeconds > 0) {
+		embedUrl.searchParams.set("start", String(startSeconds));
+	}
+
+	return embedUrl.toString();
+}
+
+function buildTwitchClipEmbedUrl(clipSlug: string): string | null {
+	const normalizedSlug = clipSlug.trim();
+	if (!normalizedSlug) {
+		return null;
+	}
+
+	const embedUrl = new URL("https://clips.twitch.tv/embed");
+	embedUrl.searchParams.set("clip", normalizedSlug);
+	embedUrl.searchParams.set("parent", "localhost");
+
+	if (typeof window !== "undefined") {
+		const parentDomain = window.location.hostname.trim();
+		if (parentDomain) {
+			embedUrl.searchParams.set("parent", parentDomain);
+		}
+	}
+
+	return embedUrl.toString();
+}
+
+function buildTwitchVideoEmbedUrl(
+	identifierKey: "channel" | "video",
+	identifierValue: string,
+): string | null {
+	const normalizedIdentifier = identifierValue.trim();
+	if (!normalizedIdentifier) {
+		return null;
+	}
+
+	const embedUrl = new URL("https://player.twitch.tv/");
+	embedUrl.searchParams.set(identifierKey, normalizedIdentifier);
+	embedUrl.searchParams.set("parent", "localhost");
+
+	if (typeof window !== "undefined") {
+		const parentDomain = window.location.hostname.trim();
+		if (parentDomain) {
+			embedUrl.searchParams.set("parent", parentDomain);
+		}
+	}
+
+	return embedUrl.toString();
+}
+
+function buildTwitchEmbedUrl(
+	rawValue: string | null | undefined,
+): string | null {
+	const normalized = normalizeLinkTarget(rawValue);
+	if (!normalized) {
+		return null;
+	}
+
+	let parsedUrl: URL;
+	try {
+		parsedUrl = new URL(normalized);
+	} catch {
+		return null;
+	}
+
+	const hostname = parsedUrl.hostname.toLowerCase();
+	if (!hostMatches(hostname, "twitch.tv")) {
+		return null;
+	}
+
+	const pathSegments = parsedUrl.pathname
+		.split("/")
+		.filter(Boolean)
+		.map((segment) => decodeURIComponent(segment));
+	if (pathSegments.length === 0) {
+		return null;
+	}
+
+	if (hostMatches(hostname, "clips.twitch.tv")) {
+		const clipSlug = pathSegments[0];
+		return clipSlug ? buildTwitchClipEmbedUrl(clipSlug) : null;
+	}
+
+	const [firstSegment, secondSegment, thirdSegment] = pathSegments;
+	const normalizedFirstSegment = firstSegment.toLowerCase();
+
+	if (normalizedFirstSegment === "videos") {
+		if (secondSegment && /^\d+$/.test(secondSegment)) {
+			return buildTwitchVideoEmbedUrl("video", `v${secondSegment}`);
+		}
+
+		return null;
+	}
+
+	if (normalizedFirstSegment === "clip") {
+		return secondSegment ? buildTwitchClipEmbedUrl(secondSegment) : null;
+	}
+
+	if (secondSegment?.toLowerCase() === "clip") {
+		return thirdSegment ? buildTwitchClipEmbedUrl(thirdSegment) : null;
+	}
+
+	if (TWITCH_RESERVED_PATH_SEGMENTS.has(normalizedFirstSegment)) {
+		return null;
+	}
+
+	return buildTwitchVideoEmbedUrl("channel", firstSegment);
+}
+
+export function buildVideoEmbedUrl(
+	rawValue: string | null | undefined,
+): string | null {
+	return buildYouTubeEmbedUrl(rawValue) ?? buildTwitchEmbedUrl(rawValue);
+}
+
+export function buildSpotifyEmbedUrl(
+	rawValue: string | null | undefined,
+): string | null {
+	const spotifyResource = extractSpotifyResource(rawValue);
+	if (!spotifyResource) {
+		return null;
+	}
+
+	const embedUrl = new URL(
+		`https://open.spotify.com/embed/${spotifyResource.type}/${spotifyResource.id}`,
+	);
+
+	const normalizedUrl = normalizeLinkTarget(rawValue);
+	if (normalizedUrl) {
+		try {
+			const parsedUrl = new URL(normalizedUrl);
+			const timestampSeconds = Number.parseInt(
+				parsedUrl.searchParams.get("t") ?? "",
+				10,
+			);
+			if (Number.isFinite(timestampSeconds) && timestampSeconds > 0) {
+				embedUrl.searchParams.set("t", String(timestampSeconds));
+			}
+		} catch {
+			return embedUrl.toString();
 		}
 	}
 
@@ -826,8 +1220,18 @@ export function buildOpenStreetMapEmbedUrl(
 export function classifyLinkTarget(
 	rawValue: string | null | undefined,
 ): LinkClassification {
+	const spotifyResource = extractSpotifyResource(rawValue);
 	const normalizedUrl = normalizeLinkTarget(rawValue);
 	if (!normalizedUrl) {
+		if (spotifyResource) {
+			return {
+				kind: "spotify",
+				platform: "Spotify",
+				normalizedUrl: `https://open.spotify.com/${spotifyResource.type}/${spotifyResource.id}`,
+				hostname: "open.spotify.com",
+			};
+		}
+
 		return {
 			kind: "web",
 			platform: null,
@@ -864,6 +1268,24 @@ export function classifyLinkTarget(
 		return {
 			kind: "reel",
 			platform: platform ?? "Reel",
+			normalizedUrl,
+			hostname,
+		};
+	}
+
+	if (isSpotifyUrl(parsedUrl)) {
+		return {
+			kind: "spotify",
+			platform: platform ?? "Spotify",
+			normalizedUrl,
+			hostname,
+		};
+	}
+
+	if (isYouTubePlaylistUrl(parsedUrl)) {
+		return {
+			kind: "youtube_playlist",
+			platform: platform ?? "YouTube",
 			normalizedUrl,
 			hostname,
 		};

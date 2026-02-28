@@ -1,4 +1,4 @@
-import { Clapperboard, Globe, MapPin, MessageCircle, Play } from "lucide-react";
+import { Clapperboard, Globe, ListVideo, Play } from "lucide-react";
 import type { DataItem } from "@/app/types/data";
 import { CardFooter } from "./CardFooter";
 import { CardShell } from "./CardShell";
@@ -6,12 +6,24 @@ import { InlineEmbedFrame } from "./InlineEmbedFrame";
 import { LINK_KIND_ACCENT_BAR } from "./styles";
 import { useLinkCardModel } from "./useLinkCardModel";
 
-interface LinkCardProps {
+interface YouTubeCardProps {
 	item: DataItem;
 	prefersReducedMotion: boolean;
 }
 
-export function LinkCard({ item, prefersReducedMotion }: LinkCardProps) {
+const YOUTUBE_KIND_BADGE_LABELS = {
+	video: "Video",
+	reel: "Short",
+	youtube_playlist: "Playlist",
+} as const;
+
+const YOUTUBE_KIND_BADGE_ICONS = {
+	video: Clapperboard,
+	reel: Play,
+	youtube_playlist: ListVideo,
+} as const;
+
+export function YouTubeCard({ item, prefersReducedMotion }: YouTubeCardProps) {
 	const model = useLinkCardModel(item);
 	const formattedDate = new Date(item.fecha).toLocaleDateString("es-ES", {
 		year: "numeric",
@@ -20,6 +32,14 @@ export function LinkCard({ item, prefersReducedMotion }: LinkCardProps) {
 	});
 	const isClickable =
 		Boolean(model.viewerIframeUrl) && !model.inlinePlayerEmbedUrl;
+	const kindBadgeLabel =
+		YOUTUBE_KIND_BADGE_LABELS[
+			model.linkKind as keyof typeof YOUTUBE_KIND_BADGE_LABELS
+		] ?? "YouTube";
+	const KindBadgeIcon =
+		YOUTUBE_KIND_BADGE_ICONS[
+			model.linkKind as keyof typeof YOUTUBE_KIND_BADGE_ICONS
+		] ?? Clapperboard;
 
 	return (
 		<CardShell
@@ -36,34 +56,13 @@ export function LinkCard({ item, prefersReducedMotion }: LinkCardProps) {
 				<InlineEmbedFrame
 					title={`Reproductor de ${model.previewTitle}`}
 					src={model.inlinePlayerEmbedUrl}
-					heightClass={model.inlinePlayerHeightClass ?? "h-[180px]"}
+					heightClass={model.inlinePlayerHeightClass ?? "h-[224px]"}
 					borderClass={model.styles.border}
 				/>
-			) : model.hasLocationSnapshot ? (
-				<div
-					className={`relative w-full ${model.mediaHeightClass} overflow-hidden border-b border-emerald-200/80 dark:border-emerald-900/70`}
-				>
-					<div className="grid h-full w-full grid-cols-2 grid-rows-2">
-						{(model.locationSnapshotTiles ?? []).map((tileUrl) => (
-							<img
-								key={tileUrl}
-								src={tileUrl}
-								alt="Mapa"
-								className="h-full w-full object-cover"
-								onError={model.onMapSnapshotError}
-							/>
-						))}
-					</div>
-					<div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-900/25 via-transparent to-transparent dark:from-slate-950/40" />
-					<div className="pointer-events-none absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/90 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white shadow-sm">
-						<MapPin className="size-3.5" />
-						Mapa
-					</div>
-				</div>
 			) : model.showPreviewImage ? (
 				model.isIconLikeMedia ? (
 					<div
-						className={`relative w-full h-24 overflow-hidden border-b ${model.styles.border} bg-white/40 dark:bg-slate-900/50`}
+						className={`relative h-24 w-full overflow-hidden border-b ${model.styles.border} bg-white/40 dark:bg-slate-900/50`}
 					>
 						<div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.45),transparent_60%)] dark:bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.12),transparent_60%)]" />
 						<div className="relative z-10 flex h-full items-center justify-center px-4">
@@ -82,7 +81,7 @@ export function LinkCard({ item, prefersReducedMotion }: LinkCardProps) {
 						<img
 							src={model.activePreviewMediaUrl ?? undefined}
 							alt={model.previewTitle}
-							className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+							className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
 							onError={model.onPreviewMediaError}
 						/>
 						{model.showPlayOverlay ? (
@@ -95,23 +94,12 @@ export function LinkCard({ item, prefersReducedMotion }: LinkCardProps) {
 						<div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-slate-900/20 to-transparent dark:from-slate-950/35" />
 					</div>
 				)
-			) : model.showLocationPlaceholder ? (
-				<div className="relative h-24 w-full overflow-hidden border-b border-emerald-200/70 bg-gradient-to-br from-emerald-100/90 to-cyan-100/70 dark:border-emerald-900/70 dark:from-emerald-950/35 dark:to-cyan-950/30">
-					<div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_30%,rgba(16,185,129,0.28),transparent_60%)] dark:bg-[radial-gradient(circle_at_18%_30%,rgba(16,185,129,0.18),transparent_60%)]" />
-					<div className="relative z-10 flex h-full items-center justify-center gap-2 text-emerald-700 dark:text-emerald-300">
-						<MapPin className="size-4" />
-						<span className="text-xs font-semibold">
-							{model.linkPlatform ?? "Ubicacion"}
-						</span>
-					</div>
-				</div>
-			) : model.showSocialPlaceholder ? (
-				<div className="relative h-24 w-full overflow-hidden border-b border-indigo-200/70 bg-gradient-to-br from-indigo-100/85 to-cyan-100/70 dark:border-indigo-900/70 dark:from-indigo-950/35 dark:to-cyan-950/30">
-					<div className="relative z-10 flex h-full items-center justify-center gap-2 text-indigo-700 dark:text-indigo-300">
-						<MessageCircle className="size-4" />
-						<span className="text-xs font-semibold">
-							{model.linkPlatform ?? "Social"}
-						</span>
+			) : model.showYouTubePlaylistPlaceholder ? (
+				<div className="relative h-24 w-full overflow-hidden border-b border-red-200/70 bg-gradient-to-br from-red-100/90 to-orange-100/70 dark:border-red-900/70 dark:from-red-950/35 dark:to-orange-950/30">
+					<div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_30%,rgba(239,68,68,0.25),transparent_60%)] dark:bg-[radial-gradient(circle_at_18%_30%,rgba(239,68,68,0.16),transparent_60%)]" />
+					<div className="relative z-10 flex h-full items-center justify-center gap-2 text-red-700 dark:text-red-300">
+						<ListVideo className="size-4" />
+						<span className="text-xs font-semibold">YouTube Playlist</span>
 					</div>
 				</div>
 			) : model.showPlayOverlay ? (
@@ -119,7 +107,7 @@ export function LinkCard({ item, prefersReducedMotion }: LinkCardProps) {
 					<div className="relative z-10 flex h-full items-center justify-center gap-2 text-orange-700 dark:text-orange-300">
 						<Clapperboard className="size-4" />
 						<span className="text-xs font-semibold">
-							{model.linkPlatform ?? "Video"}
+							{model.linkPlatform ?? "YouTube"}
 						</span>
 					</div>
 				</div>
@@ -129,17 +117,21 @@ export function LinkCard({ item, prefersReducedMotion }: LinkCardProps) {
 				/>
 			)}
 
-			<div className="p-4 space-y-3 flex flex-col">
+			<div className="flex flex-col space-y-3 p-4">
 				<div className="flex items-start justify-between gap-2">
 					<div
-						className={`p-1.5 rounded-lg ${model.styles.iconBg} ${model.styles.iconColor} flex-shrink-0`}
+						className={`flex-shrink-0 rounded-lg p-1.5 ${model.styles.iconBg} ${model.styles.iconColor}`}
 					>
-						<model.LinkKindIcon className="w-3.5 h-3.5" />
+						<model.LinkKindIcon className="h-3.5 w-3.5" />
 					</div>
+					<span className="inline-flex items-center gap-1 rounded-full border border-red-300/80 bg-red-100/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-red-800 dark:border-red-800 dark:bg-red-950/45 dark:text-red-200">
+						<KindBadgeIcon className="size-3" />
+						{kindBadgeLabel}
+					</span>
 				</div>
 
 				{model.isPreviewLoading ? (
-					<div className="space-y-2 animate-pulse">
+					<div className="animate-pulse space-y-2">
 						<div className="h-3 w-20 rounded-full bg-slate-200/80 dark:bg-slate-700/70" />
 						<div className="h-4 w-full rounded-md bg-slate-200/80 dark:bg-slate-700/70" />
 						<div className="h-4 w-11/12 rounded-md bg-slate-200/80 dark:bg-slate-700/70" />
@@ -147,12 +139,12 @@ export function LinkCard({ item, prefersReducedMotion }: LinkCardProps) {
 					</div>
 				) : (
 					<div className="space-y-2">
-						<h3 className="font-semibold text-sm leading-snug text-slate-900 dark:text-slate-100 line-clamp-3">
+						<h3 className="line-clamp-3 text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100">
 							{model.previewTitle}
 						</h3>
 
 						{model.previewDescription ? (
-							<p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-3">
+							<p className="line-clamp-3 text-xs text-slate-600 dark:text-slate-400">
 								{model.previewDescription}
 							</p>
 						) : null}

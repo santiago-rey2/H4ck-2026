@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from sqlmodel import Session, text, select
 from app.core.database import create_db_and_tables, engine
-from app.api.v1.endpoints import items, categories
+from app.api.v1.endpoints import items, categories, telegram
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.model.category import Category
@@ -59,3 +59,4 @@ def healthcheck() -> dict[str, str]:
 
 app.include_router(items.router, prefix="/items", tags=["Items"])
 app.include_router(categories.router, prefix="/categories", tags=["Categories"])
+app.include_router(telegram.router, prefix="/telegram", tags=["Telegram"])

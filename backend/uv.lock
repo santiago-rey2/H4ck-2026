@@ -46,6 +46,7 @@ dependencies = [
     { name = "google-genai" },
     { name = "psycopg2-binary" },
     { name = "python-dotenv" },
+    { name = "requests" },
     { name = "sqlmodel" },
     { name = "yt-dlp" },
 ]
@@ -57,6 +58,7 @@ requires-dist = [
     { name = "google-genai", specifier = ">=1.65.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.11" },
     { name = "python-dotenv", specifier = ">=1.2.1" },
+    { name = "requests", specifier = ">=2.31.0" },
     { name = "sqlmodel", specifier = ">=0.0.37" },
     { name = "yt-dlp", specifier = ">=2026.2.21" },
 ]

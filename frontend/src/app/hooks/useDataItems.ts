@@ -9,6 +9,7 @@ import { isHttpError } from "@/app/api/appFetch";
 import {
 	type CreateItemPayload,
 	createItem,
+	createItemFromAudio,
 	deleteItem,
 	getItemById,
 	getItemLinkPreview,
@@ -122,6 +123,17 @@ export function useCreateItemMutation() {
 
 	return useMutation({
 		mutationFn: (payload: CreateItemPayload) => createItem(payload),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: itemsKeys.all });
+		},
+	});
+}
+
+export function useCreateItemFromAudioMutation() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: (file: File) => createItemFromAudio(file),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: itemsKeys.all });
 		},

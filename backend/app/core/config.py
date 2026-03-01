@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     DB_SERVER: str
     DB_NAME: str
     DB_PORT: int = 5432
+    TELEGRAM_TOKEN: str = ""
 
     LINK_PREVIEW_CONNECT_TIMEOUT: float = 4.0
     LINK_PREVIEW_READ_TIMEOUT: float = 8.0

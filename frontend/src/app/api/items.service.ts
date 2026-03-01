@@ -182,6 +182,18 @@ export async function createItem(
 	return mapBackendItem(created);
 }
 
+export async function createItemFromAudio(file: File): Promise<DataItem> {
+	const formData = new FormData();
+	formData.append("file", file, file.name);
+
+	const created = await appFetch<BackendItemResponse>("/items/from-audio", {
+		method: "POST",
+		body: formData,
+	});
+
+	return mapBackendItem(created);
+}
+
 export async function updateItem(
 	itemId: number,
 	payload: UpdateItemPayload,

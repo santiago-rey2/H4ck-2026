@@ -1,20 +1,19 @@
 import os
 import uuid
 from typing import Annotated, Optional
+
 import aiofiles
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from sqlalchemy.orm import selectinload
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlmodel import Session
+
 from app.api.utils import COMMON_RESPONSES
 from app.core.database import get_session
-from app.model.category import Category
 from app.model.items import (
-    ItemResponse,
     ItemCreate,
-    ItemUpdate,
-    Item,
     LinkPreviewResponse,
     PaginatedItemsResponse,
+    ItemResponse,
+    ItemUpdate,
 )
 from app.service.item_service import item_service
 from app.service.link_preview_service import link_preview_service
@@ -59,6 +58,7 @@ def read_items_paginated(
     skip: int = 0,
     limit: int = 20,
     name: Optional[str] = None,
+    q: Optional[str] = None,
     format: Optional[str] = None,
     has_categories: Optional[bool] = None,
     category_id: Optional[int] = None,
@@ -71,6 +71,7 @@ def read_items_paginated(
         skip=safe_skip,
         limit=safe_limit,
         name=name,
+        search_query=q,
         format_name=format,
         has_categories=has_categories,
         category_id=category_id,
@@ -91,28 +92,23 @@ def read_items(
     skip: int = 0,
     limit: int = 100,
     name: Optional[str] = None,
+    q: Optional[str] = None,
     format: Optional[str] = None,
     has_categories: Optional[bool] = None,
     category_id: Optional[int] = None,
 ):
-    extra_criteria = []
-
-    if category_id is not None:
-        extra_criteria.append(Item.categories.any(Category.id == category_id))
-    elif has_categories is True:
-        extra_criteria.append(Item.categories.any())
-    elif has_categories is False:
-        extra_criteria.append(~Item.categories.any())
-
-    return item_service.get_multi(
+    rows, _ = item_service.get_multi_paginated(
         db,
         skip=skip,
         limit=limit,
         name=name,
-        format=format,
-        criteria=extra_criteria,
-        options=[selectinload(Item.categories)],
+        search_query=q,
+        format_name=format,
+        has_categories=has_categories,
+        category_id=category_id,
     )
+
+    return rows
 
 
 @router.get("/by-format")

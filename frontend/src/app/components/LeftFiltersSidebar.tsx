@@ -29,9 +29,9 @@ export function LeftFiltersSidebar({
 	className,
 	surface = "default",
 }: LeftFiltersSidebarProps) {
+	const [searchQuery, setSearchQuery] = useAtom(dataSearchQueryAtom);
 	const { data, isLoading, hasMore } = useDataItems();
 	const { data: categories, isLoading: isCategoriesLoading } = useCategories();
-	const [searchQuery, setSearchQuery] = useAtom(dataSearchQueryAtom);
 	const [selectedFormats, setSelectedFormats] = useAtom(selectedFormatsAtom);
 	const [selectedTags, setSelectedTags] = useAtom(selectedTagsAtom);
 	const clearFilters = useSetAtom(clearDataFiltersAtom);

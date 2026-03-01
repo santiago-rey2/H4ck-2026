@@ -1,5 +1,6 @@
 export interface ItemsInfiniteKeyParams {
 	pageSize: number;
+	searchQuery?: string;
 }
 
 export interface CategoriesKeyParams {

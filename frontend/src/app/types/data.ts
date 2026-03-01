@@ -2,6 +2,7 @@ export interface DataItem {
 	id: number;
 	texto: string;
 	tags: string[];
+	categoryDescriptions?: string[];
 	formato: string;
 	fecha: string;
 	// Campos opcionales para links

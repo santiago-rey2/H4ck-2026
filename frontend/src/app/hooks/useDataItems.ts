@@ -1,6 +1,7 @@
 import {
 	useInfiniteQuery,
 	useMutation,
+	useQueries,
 	useQuery,
 	useQueryClient,
 } from "@tanstack/react-query";
@@ -25,6 +26,10 @@ const DEFAULT_PAGE_SIZE = 12;
 const AUTO_REFRESH_INTERVAL_MS = 2_000;
 const ITEMS_INFINITE_QUERY_PREFIX = ["items", "infinite"] as const;
 
+function normalizeTextQuery(value: string): string {
+	return value.trim().replace(/\s+/g, " ");
+}
+
 function flattenUniqueItems(pages?: Array<{ items: DataItem[] }>): DataItem[] {
 	if (!pages || pages.length === 0) {
 		return [];
@@ -45,6 +50,97 @@ function flattenUniqueItems(pages?: Array<{ items: DataItem[] }>): DataItem[] {
 	}
 
 	return merged;
+}
+
+function buildLinkPreviewSearchText(preview: LinkPreviewDto | null): string {
+	if (!preview) {
+		return "";
+	}
+
+	return [
+		preview.title,
+		preview.description,
+		preview.site_name,
+		preview.url,
+		preview.final_url,
+	]
+		.filter((value): value is string => Boolean(value?.trim()))
+		.join(" ");
+}
+
+async function fetchItemLinkPreviewSafe(
+	itemId: number,
+): Promise<LinkPreviewDto | null> {
+	try {
+		return await getItemLinkPreview(itemId);
+	} catch (error) {
+		if (isHttpError(error)) {
+			if ([0, 400, 404, 422, 502, 504].includes(error.status)) {
+				return null;
+			}
+		}
+
+		throw error;
+	}
+}
+
+export interface LinkPreviewSearchIndexResult {
+	searchIndexByItemId: Map<number, string>;
+	isIndexing: boolean;
+	totalLinksToIndex: number;
+	indexedLinksCount: number;
+}
+
+export function useLinkPreviewSearchIndex(
+	items: DataItem[],
+	searchQuery: string,
+): LinkPreviewSearchIndexResult {
+	const normalizedSearchQuery = normalizeTextQuery(searchQuery);
+	const searchableLinkItems = useMemo(
+		() =>
+			normalizedSearchQuery
+				? items.filter((item) => item.formato === "link" && item.id > 0)
+				: [],
+		[items, normalizedSearchQuery],
+	);
+
+	const linkPreviewQueries = useQueries({
+		queries: searchableLinkItems.map((item) => ({
+			queryKey: itemsKeys.linkPreview(item.id),
+			queryFn: () => fetchItemLinkPreviewSafe(item.id),
+			enabled: Boolean(normalizedSearchQuery),
+			staleTime: 10 * 60_000,
+			retry: 0,
+		})),
+	});
+
+	const searchIndexByItemId = useMemo(() => {
+		const nextMap = new Map<number, string>();
+
+		for (const [index, item] of searchableLinkItems.entries()) {
+			const preview = linkPreviewQueries[index]?.data ?? null;
+			const previewSearchText = buildLinkPreviewSearchText(preview);
+			if (!previewSearchText) {
+				continue;
+			}
+
+			nextMap.set(item.id, previewSearchText);
+		}
+
+		return nextMap;
+	}, [linkPreviewQueries, searchableLinkItems]);
+
+	const isIndexing =
+		Boolean(normalizedSearchQuery) &&
+		linkPreviewQueries.some((query) => query.isPending || query.isFetching);
+	const indexedLinksCount = searchIndexByItemId.size;
+
+	return {
+		searchIndexByItemId,
+		isIndexing,
+		totalLinksToIndex: searchableLinkItems.length,
+		indexedLinksCount,
+	};
 }
 
 function useAutoRefreshItemsOnExternalChanges() {
@@ -101,11 +197,18 @@ function useAutoRefreshItemsOnExternalChanges() {
 	}, [latestItemProbe.data, queryClient]);
 }
 
-export function useInfiniteDataItems(pageSize = DEFAULT_PAGE_SIZE) {
+export function useInfiniteDataItems(
+	pageSize = DEFAULT_PAGE_SIZE,
+	searchQuery = "",
+) {
 	useAutoRefreshItemsOnExternalChanges();
+	const normalizedSearchQuery = normalizeTextQuery(searchQuery);
 
 	const query = useInfiniteQuery({
-		queryKey: itemsKeys.infinite({ pageSize }),
+		queryKey: itemsKeys.infinite({
+			pageSize,
+			searchQuery: normalizedSearchQuery,
+		}),
 		initialPageParam: 0,
 		queryFn: ({ pageParam }) => {
 			const safeSkip =
@@ -114,6 +217,7 @@ export function useInfiniteDataItems(pageSize = DEFAULT_PAGE_SIZE) {
 			return getItemsPage({
 				skip: safeSkip,
 				limit: pageSize,
+				q: normalizedSearchQuery || undefined,
 			});
 		},
 		getNextPageParam: (lastPage) => {
@@ -142,8 +246,8 @@ export function useInfiniteDataItems(pageSize = DEFAULT_PAGE_SIZE) {
 	};
 }
 
-export function useDataItems(pageSize = DEFAULT_PAGE_SIZE) {
-	return useInfiniteDataItems(pageSize);
+export function useDataItems(pageSize = DEFAULT_PAGE_SIZE, searchQuery = "") {
+	return useInfiniteDataItems(pageSize, searchQuery);
 }
 
 export function useItem(itemId: number, enabled = true) {
@@ -157,19 +261,7 @@ export function useItem(itemId: number, enabled = true) {
 export function useItemLinkPreview(itemId: number | null, enabled = true) {
 	return useQuery<LinkPreviewDto | null>({
 		queryKey: itemsKeys.linkPreview(itemId ?? 0),
-		queryFn: async () => {
-			try {
-				return await getItemLinkPreview(itemId as number);
-			} catch (error) {
-				if (isHttpError(error)) {
-					if ([0, 400, 404, 422, 502, 504].includes(error.status)) {
-						return null;
-					}
-				}
-
-				throw error;
-			}
-		},
+		queryFn: () => fetchItemLinkPreviewSafe(itemId as number),
 		enabled: enabled && itemId !== null && itemId > 0,
 		staleTime: 60_000,
 		retry: 0,

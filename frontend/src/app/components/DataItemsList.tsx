@@ -14,7 +14,10 @@ import {
 	selectedFormatsAtom,
 	selectedTagsAtom,
 } from "@/app/atoms";
-import { useDataItems } from "@/app/hooks/useDataItems";
+import {
+	useDataItems,
+	useLinkPreviewSearchIndex,
+} from "@/app/hooks/useDataItems";
 import { MOTION_DURATION, MOTION_EASE } from "@/app/motion/tokens";
 import { useMotionPreferences } from "@/app/motion/useMotionPreferences";
 import { getListItemVariants } from "@/app/motion/variants";
@@ -165,6 +168,7 @@ function MasonryCardItem({
 }
 
 export function DataItemsList() {
+	const searchQuery = useAtomValue(dataSearchQueryAtom);
 	const {
 		data,
 		isLoading,
@@ -174,7 +178,6 @@ export function DataItemsList() {
 		isFetchingNextPage,
 	} = useDataItems();
 	const { prefersReducedMotion } = useMotionPreferences();
-	const searchQuery = useAtomValue(dataSearchQueryAtom);
 	const selectedFormats = useAtomValue(selectedFormatsAtom);
 	const selectedTags = useAtomValue(selectedTagsAtom);
 	const isSearchActive = searchQuery.trim().length > 0;
@@ -187,17 +190,29 @@ export function DataItemsList() {
 	}, []);
 
 	const items = data?.items ?? [];
+	const {
+		searchIndexByItemId,
+		isIndexing,
+		totalLinksToIndex,
+		indexedLinksCount,
+	} = useLinkPreviewSearchIndex(items, searchQuery);
 
 	const orderedItems = useMemo(
 		() =>
 			interleaveItemsByFormat(
-				filterDataItems(items, {
-					searchQuery,
-					selectedFormats,
-					selectedTags,
-				}),
+				filterDataItems(
+					items,
+					{
+						searchQuery,
+						selectedFormats,
+						selectedTags,
+					},
+					{
+						linkPreviewSearchIndexByItemId: searchIndexByItemId,
+					},
+				),
 			),
-		[items, searchQuery, selectedFormats, selectedTags],
+		[items, searchQuery, selectedFormats, selectedTags, searchIndexByItemId],
 	);
 
 	const activeFiltersCount =
@@ -279,6 +294,25 @@ export function DataItemsList() {
 	}
 
 	if (orderedItems.length === 0) {
+		if (isSearchActive && isIndexing) {
+			return (
+				<div className="flex items-center justify-center min-h-96 px-6">
+					<div className="text-center max-w-md space-y-3">
+						<div className="inline-flex items-center justify-center rounded-full bg-slate-200/70 dark:bg-slate-800 p-3">
+							<Loader2 className="w-5 h-5 animate-spin text-slate-600 dark:text-slate-300" />
+						</div>
+						<p className="font-semibold text-slate-800 dark:text-slate-100">
+							Buscando en metadata de enlaces...
+						</p>
+						<p className="text-sm text-slate-600 dark:text-slate-400">
+							Indexados {indexedLinksCount} de {totalLinksToIndex} links
+							cargados.
+						</p>
+					</div>
+				</div>
+			);
+		}
+
 		return (
 			<div className="flex items-center justify-center min-h-96 px-6">
 				<div className="text-center max-w-md space-y-3">

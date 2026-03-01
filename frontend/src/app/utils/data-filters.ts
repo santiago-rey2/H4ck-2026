@@ -7,6 +7,10 @@ export interface DataFilters {
 	selectedTags: string[];
 }
 
+export interface DataFilterOptions {
+	linkPreviewSearchIndexByItemId?: Map<number, string> | null;
+}
+
 export interface TagCount {
 	tag: string;
 	count: number;
@@ -84,7 +88,10 @@ function buildLinkSearchCandidates(rawText: string): string[] {
 	return linkCandidates;
 }
 
-function buildSearchableText(item: DataItem): string {
+function buildSearchableText(
+	item: DataItem,
+	linkPreviewSearchText?: string | null,
+): string {
 	const candidates: string[] = [];
 
 	for (const field of SEARCH_FIELDS) {
@@ -105,10 +112,17 @@ function buildSearchableText(item: DataItem): string {
 	}
 
 	candidates.push(...item.tags);
+	if (item.categoryDescriptions && item.categoryDescriptions.length > 0) {
+		candidates.push(...item.categoryDescriptions);
+	}
 	candidates.push(...(FORMAT_SEARCH_ALIASES[item.formato] ?? []));
 
 	if (item.formato === "link") {
 		candidates.push(...buildLinkSearchCandidates(item.texto));
+
+		if (linkPreviewSearchText) {
+			candidates.push(linkPreviewSearchText);
+		}
 	}
 
 	return normalizeSearchText(candidates.join(" "));
@@ -117,6 +131,7 @@ function buildSearchableText(item: DataItem): string {
 export function filterDataItems(
 	items: DataItem[],
 	filters: DataFilters,
+	options?: DataFilterOptions,
 ): DataItem[] {
 	const normalizedQuery = normalizeSearchText(filters.searchQuery);
 	const explicitIdMatch = normalizedQuery.match(/^id\s+(\d+)$/);
@@ -157,7 +172,9 @@ export function filterDataItems(
 			return item.id === explicitItemId;
 		}
 
-		const searchableText = buildSearchableText(item);
+		const linkPreviewSearchText =
+			options?.linkPreviewSearchIndexByItemId?.get(item.id) ?? null;
+		const searchableText = buildSearchableText(item, linkPreviewSearchText);
 		return queryTokens.every((token) => searchableText.includes(token));
 	});
 }

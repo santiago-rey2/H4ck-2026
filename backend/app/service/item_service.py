@@ -1,6 +1,7 @@
 from typing import Optional, Any, Dict
 
 from fastapi import HTTPException
+from sqlalchemy import String, cast, or_
 from sqlalchemy.orm import selectinload
 
 from app.crud.base import CRUDBase
@@ -161,6 +162,7 @@ class CRUDItem(CRUDBase[Item, ItemCreate, ItemUpdate]):
         skip: int = 0,
         limit: int = 100,
         name: Optional[str] = None,
+        search_query: Optional[str] = None,
         format_name: Optional[str] = None,
         has_categories: Optional[bool] = None,
         category_id: Optional[int] = None,
@@ -171,8 +173,28 @@ class CRUDItem(CRUDBase[Item, ItemCreate, ItemUpdate]):
             .options(selectinload(Item.categories))
         )
 
-        if name:
-            statement = statement.where(Item.name.ilike(f"%{name}%"))
+        normalized_search_query = (search_query or name or "").strip()
+        if normalized_search_query:
+            search_tokens = [
+                token.strip()
+                for token in normalized_search_query.split()
+                if token.strip()
+            ]
+
+            for token in search_tokens:
+                token_pattern = f"%{token}%"
+                statement = statement.where(
+                    or_(
+                        Item.name.ilike(token_pattern),
+                        Item.description.ilike(token_pattern),
+                        cast(Item.format, String).ilike(token_pattern),
+                        cast(Item.id, String).ilike(token_pattern),
+                        cast(Item.created_at, String).ilike(token_pattern),
+                        cast(Item.updated_at, String).ilike(token_pattern),
+                        Item.categories.any(Category.name.ilike(token_pattern)),
+                        Item.categories.any(Category.description.ilike(token_pattern)),
+                    )
+                )
 
         if format_name:
             statement = statement.where(Item.format == format_name)

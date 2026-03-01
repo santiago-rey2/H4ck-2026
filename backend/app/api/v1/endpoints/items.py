@@ -4,7 +4,7 @@ from typing import Annotated, Optional
 import aiofiles
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import selectinload
-from sqlmodel import Session, select
+from sqlmodel import Session
 from app.api.utils import COMMON_RESPONSES
 from app.core.database import get_session
 from app.model.category import Category
@@ -16,7 +16,6 @@ from app.model.items import (
     LinkPreviewResponse,
     PaginatedItemsResponse,
 )
-from app.service.ia_service import process_audio_to_text_and_ai
 from app.service.item_service import item_service
 from app.service.link_preview_service import link_preview_service
 
@@ -32,34 +31,22 @@ async def create_item(item_in: ItemCreate, db: SessionDep):
 
 @router.post("/from-audio", response_model=ItemResponse)
 async def create_from_audio(
-        file: UploadFile = File(...),
-        db: Session = Depends(get_session)
+    file: UploadFile = File(...), db: Session = Depends(get_session)
 ):
     temp_filename = f"{uuid.uuid4()}_{file.filename}"
 
-    async with aiofiles.open(temp_filename, 'wb') as out_file:
+    async with aiofiles.open(temp_filename, "wb") as out_file:
         content = await file.read()
         await out_file.write(content)
 
     try:
-        ai_data = await process_audio_to_text_and_ai(temp_filename, db)
-
-        new_item = Item(
-            name=ai_data["refined_text"],
-            format=ai_data.get("format", "NOTA"),
-            description=f"Transcripción original: {ai_data.get('raw_transcription', '')}"
+        db_item = await item_service.create_from_audio_file(
+            db,
+            file_path=temp_filename,
+            source_description="Audio subido manualmente",
         )
 
-        suggested_names = ai_data.get("categories", [])
-        if suggested_names:
-            statement = select(Category).where(Category.name.in_(suggested_names))
-            new_item.categories = db.exec(statement).all()
-
-        db.add(new_item)
-        db.commit()
-        db.refresh(new_item)
-
-        return new_item
+        return db_item
 
     finally:
         if os.path.exists(temp_filename):

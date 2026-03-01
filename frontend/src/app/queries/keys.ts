@@ -11,6 +11,7 @@ export const itemsKeys = {
 	all: ["items"] as const,
 	infinite: (params: ItemsInfiniteKeyParams) =>
 		["items", "infinite", params] as const,
+	latest: () => ["items", "latest"] as const,
 	detail: (itemId: number) => ["items", "detail", itemId] as const,
 	linkPreview: (itemId: number) => ["items", "preview", itemId] as const,
 };

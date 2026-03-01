@@ -1,6 +1,7 @@
 from typing import Optional, Any, Dict
 
 from fastapi import HTTPException
+from sqlalchemy import String, cast, or_
 from sqlalchemy.orm import selectinload
 
 from app.crud.base import CRUDBase
@@ -8,7 +9,10 @@ from app.model.items import Item, ItemCreate, ItemUpdate
 from app.model.category import Category
 from sqlmodel import Session, select
 
-from app.service.ia_service import classify_content_semantically
+from app.service.ia_service import (
+    classify_content_semantically,
+    process_audio_to_text_and_ai,
+)
 
 
 class CRUDItem(CRUDBase[Item, ItemCreate, ItemUpdate]):
@@ -33,9 +37,7 @@ class CRUDItem(CRUDBase[Item, ItemCreate, ItemUpdate]):
 
         print("Iniciando clasificación por IA...")
         ai_result = await classify_content_semantically(
-            content=db_item.name,
-            format=db_item.format,
-            db=db
+            content=db_item.name, format=db_item.format, db=db
         )
 
         suggested_names = ai_result.get("categories", [])
@@ -48,6 +50,58 @@ class CRUDItem(CRUDBase[Item, ItemCreate, ItemUpdate]):
             db.refresh(db_item)
 
         return db_item
+
+    async def create_from_audio_file(
+        self,
+        db: Session,
+        *,
+        file_path: str,
+        source_description: Optional[str] = None,
+    ) -> Item:
+        ai_data = await process_audio_to_text_and_ai(file_path, db)
+
+        refined_text = str(
+            ai_data.get("refined_text") or ai_data.get("name") or ""
+        ).strip()
+        if not refined_text:
+            refined_text = "Audio vacío"
+
+        raw_transcription = str(ai_data.get("raw_transcription") or "").strip()
+        format_value = str(ai_data.get("format") or "NOTA").strip() or "NOTA"
+
+        description_parts: list[str] = []
+        if source_description:
+            description_parts.append(source_description)
+        if raw_transcription:
+            description_parts.append(f"Transcripción original: {raw_transcription}")
+        if not description_parts:
+            description_parts.append("Transcripción de audio")
+
+        new_item = Item(
+            name=refined_text,
+            format=format_value,
+            description=" | ".join(description_parts),
+        )
+
+        suggested_names_raw = ai_data.get("categories", [])
+        suggested_names = (
+            [
+                category_name.strip()
+                for category_name in suggested_names_raw
+                if isinstance(category_name, str) and category_name.strip()
+            ]
+            if isinstance(suggested_names_raw, list)
+            else []
+        )
+        if suggested_names:
+            statement = select(Category).where(Category.name.in_(suggested_names))
+            new_item.categories = list(db.exec(statement).all())
+
+        db.add(new_item)
+        db.commit()
+        db.refresh(new_item)
+
+        return new_item
 
     def update(self, db: Session, *, db_obj: Item, obj_in: ItemUpdate) -> Item:
         update_data = obj_in.model_dump(exclude_unset=True)
@@ -108,6 +162,7 @@ class CRUDItem(CRUDBase[Item, ItemCreate, ItemUpdate]):
         skip: int = 0,
         limit: int = 100,
         name: Optional[str] = None,
+        search_query: Optional[str] = None,
         format_name: Optional[str] = None,
         has_categories: Optional[bool] = None,
         category_id: Optional[int] = None,
@@ -118,8 +173,28 @@ class CRUDItem(CRUDBase[Item, ItemCreate, ItemUpdate]):
             .options(selectinload(Item.categories))
         )
 
-        if name:
-            statement = statement.where(Item.name.ilike(f"%{name}%"))
+        normalized_search_query = (search_query or name or "").strip()
+        if normalized_search_query:
+            search_tokens = [
+                token.strip()
+                for token in normalized_search_query.split()
+                if token.strip()
+            ]
+
+            for token in search_tokens:
+                token_pattern = f"%{token}%"
+                statement = statement.where(
+                    or_(
+                        Item.name.ilike(token_pattern),
+                        Item.description.ilike(token_pattern),
+                        cast(Item.format, String).ilike(token_pattern),
+                        cast(Item.id, String).ilike(token_pattern),
+                        cast(Item.created_at, String).ilike(token_pattern),
+                        cast(Item.updated_at, String).ilike(token_pattern),
+                        Item.categories.any(Category.name.ilike(token_pattern)),
+                        Item.categories.any(Category.description.ilike(token_pattern)),
+                    )
+                )
 
         if format_name:
             statement = statement.where(Item.format == format_name)

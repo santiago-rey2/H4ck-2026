@@ -1,5 +1,6 @@
 export interface ItemsInfiniteKeyParams {
 	pageSize: number;
+	searchQuery?: string;
 }
 
 export interface CategoriesKeyParams {
@@ -11,6 +12,7 @@ export const itemsKeys = {
 	all: ["items"] as const,
 	infinite: (params: ItemsInfiniteKeyParams) =>
 		["items", "infinite", params] as const,
+	latest: () => ["items", "latest"] as const,
 	detail: (itemId: number) => ["items", "detail", itemId] as const,
 	linkPreview: (itemId: number) => ["items", "preview", itemId] as const,
 };
@@ -19,6 +21,4 @@ export const categoriesKeys = {
 	all: ["categories"] as const,
 	list: (params: CategoriesKeyParams) =>
 		["categories", "list", params] as const,
-	detail: (categoryId: number) => ["categories", "detail", categoryId] as const,
-	items: (categoryId: number) => ["categories", "items", categoryId] as const,
 };

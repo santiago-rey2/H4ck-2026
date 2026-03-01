@@ -1,10 +1,14 @@
-import type { DataItem } from "@/app/types/data";
+import type { DataItem, DataItemFormat } from "@/app/types/data";
 import { normalizeLinkTarget } from "@/app/utils/link-classifier";
 
 export interface DataFilters {
 	searchQuery: string;
-	selectedFormats: string[];
+	selectedFormats: DataItemFormat[];
 	selectedTags: string[];
+}
+
+export interface DataFilterOptions {
+	linkPreviewSearchIndexByItemId?: Map<number, string> | null;
 }
 
 export interface TagCount {
@@ -16,7 +20,7 @@ const SEARCH_FIELDS: Array<
 	keyof Pick<DataItem, "texto" | "title" | "description">
 > = ["texto", "title", "description"];
 
-const FORMAT_SEARCH_ALIASES: Record<string, string[]> = {
+const FORMAT_SEARCH_ALIASES: Record<DataItemFormat, string[]> = {
 	dato: ["dato", "datos", "short text", "short_text", "texto corto"],
 	nota: ["nota", "notas", "long text", "long_text", "texto largo"],
 	link: ["link", "links", "enlace", "enlaces", "url", "urls"],
@@ -84,7 +88,10 @@ function buildLinkSearchCandidates(rawText: string): string[] {
 	return linkCandidates;
 }
 
-function buildSearchableText(item: DataItem): string {
+function buildSearchableText(
+	item: DataItem,
+	linkPreviewSearchText?: string | null,
+): string {
 	const candidates: string[] = [];
 
 	for (const field of SEARCH_FIELDS) {
@@ -105,10 +112,17 @@ function buildSearchableText(item: DataItem): string {
 	}
 
 	candidates.push(...item.tags);
+	if (item.categoryDescriptions && item.categoryDescriptions.length > 0) {
+		candidates.push(...item.categoryDescriptions);
+	}
 	candidates.push(...(FORMAT_SEARCH_ALIASES[item.formato] ?? []));
 
 	if (item.formato === "link") {
 		candidates.push(...buildLinkSearchCandidates(item.texto));
+
+		if (linkPreviewSearchText) {
+			candidates.push(linkPreviewSearchText);
+		}
 	}
 
 	return normalizeSearchText(candidates.join(" "));
@@ -117,6 +131,7 @@ function buildSearchableText(item: DataItem): string {
 export function filterDataItems(
 	items: DataItem[],
 	filters: DataFilters,
+	options?: DataFilterOptions,
 ): DataItem[] {
 	const normalizedQuery = normalizeSearchText(filters.searchQuery);
 	const explicitIdMatch = normalizedQuery.match(/^id\s+(\d+)$/);
@@ -157,7 +172,9 @@ export function filterDataItems(
 			return item.id === explicitItemId;
 		}
 
-		const searchableText = buildSearchableText(item);
+		const linkPreviewSearchText =
+			options?.linkPreviewSearchIndexByItemId?.get(item.id) ?? null;
+		const searchableText = buildSearchableText(item, linkPreviewSearchText);
 		return queryTokens.every((token) => searchableText.includes(token));
 	});
 }
@@ -182,8 +199,10 @@ export function getTagCounts(items: DataItem[]): TagCount[] {
 		});
 }
 
-export function getFormatCounts(items: DataItem[]): Record<string, number> {
-	const counts: Record<string, number> = {};
+export function getFormatCounts(
+	items: DataItem[],
+): Partial<Record<DataItemFormat, number>> {
+	const counts: Partial<Record<DataItemFormat, number>> = {};
 
 	for (const item of items) {
 		counts[item.formato] = (counts[item.formato] ?? 0) + 1;
@@ -197,7 +216,7 @@ export function interleaveItemsByFormat(items: DataItem[]): DataItem[] {
 		return items;
 	}
 
-	const groupedItems = new Map<string, DataItem[]>();
+	const groupedItems = new Map<DataItemFormat, DataItem[]>();
 	for (const item of items) {
 		const bucket = groupedItems.get(item.formato);
 		if (bucket) {
@@ -214,7 +233,7 @@ export function interleaveItemsByFormat(items: DataItem[]): DataItem[] {
 
 	const formatOrder = [...groupedItems.keys()];
 
-	const cursors = new Map<string, number>();
+	const cursors = new Map<DataItemFormat, number>();
 	for (const format of formatOrder) {
 		cursors.set(format, 0);
 	}

@@ -8,7 +8,7 @@ import {
 	UserRound,
 } from "lucide-react";
 import type { DataItem } from "@/app/types/data";
-import type { SpotifyResourceType } from "@/app/utils/link-classifier";
+import type { SpotifyResourceType } from "@/app/utils/link-types";
 import { CardFooter } from "./CardFooter";
 import { CardShell } from "./CardShell";
 import { InlineEmbedFrame } from "./InlineEmbedFrame";

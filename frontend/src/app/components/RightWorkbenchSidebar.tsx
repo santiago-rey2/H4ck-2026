@@ -1,10 +1,9 @@
-import { useAtom } from "jotai";
-import { Eraser, Loader2, Send, SquarePen } from "lucide-react";
-import { entryDraftAtom } from "@/app/atoms";
-import { useCreateItemMutation } from "@/app/hooks/useDataItems";
-import { emitToast } from "@/app/utils/toast-sink";
-import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
+import { EntryActions } from "./right-workbench/EntryActions";
+import { EntryInputFields } from "./right-workbench/EntryInputFields";
+import { ModeSwitch } from "./right-workbench/ModeSwitch";
+import type { EntryInputMode } from "./right-workbench/types";
+import { useRightWorkbenchComposer } from "./right-workbench/useRightWorkbenchComposer";
 
 interface RightWorkbenchSidebarProps {
 	className?: string;
@@ -15,41 +14,26 @@ export function RightWorkbenchSidebar({
 	className,
 	surface = "default",
 }: RightWorkbenchSidebarProps) {
-	const createItemMutation = useCreateItemMutation();
-	const [entryDraft, setEntryDraft] = useAtom(entryDraftAtom);
-
-	const trimmedEntryDraft = entryDraft.trim();
-	const canSaveEntry =
-		trimmedEntryDraft.length > 0 && !createItemMutation.isPending;
-	const hasEntryFormValues = trimmedEntryDraft.length > 0;
-
-	const clearEntryComposer = () => {
-		setEntryDraft("");
+	const {
+		entryDraft,
+		entryInputMode,
+		audioFile,
+		audioInputRef,
+		isSubmitting,
+		canSaveEntry,
+		hasEntryFormValues,
+		setEntryInputMode,
+		setEntryDraftValue,
+		setAudioFileValue,
+		clearActiveInput,
+		submitManualEntry,
+		submitActiveEntry,
+	} = useRightWorkbenchComposer();
+	const handleEntryModeChange = (nextMode: EntryInputMode) => {
+		setEntryInputMode(nextMode);
 	};
-
-	const submitEntry = async () => {
-		if (!trimmedEntryDraft || createItemMutation.isPending) {
-			return;
-		}
-
-		try {
-			await createItemMutation.mutateAsync({
-				name: trimmedEntryDraft,
-			});
-
-			clearEntryComposer();
-			emitToast({
-				tone: "success",
-				title: "Item guardado",
-				message: "Se agrego un nuevo item al feed.",
-			});
-		} catch {
-			emitToast({
-				tone: "error",
-				title: "No se pudo guardar",
-				message: "Revisa el modal de error para mas detalle.",
-			});
-		}
+	const handleAudioFileChange = (nextAudioFile: File | null) => {
+		setAudioFileValue(nextAudioFile);
 	};
 
 	return (
@@ -72,68 +56,36 @@ export function RightWorkbenchSidebar({
 					Panel derecho
 				</h2>
 
-				<div className="inline-flex items-center gap-2 rounded-lg border border-amber-300/70 bg-amber-100/70 px-3 py-1.5 text-xs font-semibold text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
-					<SquarePen className="size-3.5" />
-					Entrada manual
-				</div>
+				<ModeSwitch
+					entryInputMode={entryInputMode}
+					isSubmitting={isSubmitting}
+					onModeChange={handleEntryModeChange}
+				/>
 			</div>
 
 			<div className="flex-1 p-5 overflow-y-auto space-y-4">
-				<div className="space-y-1">
-					<p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-						Introducir informacion
-					</p>
-					<p className="text-xs text-slate-600 dark:text-slate-400">
-						Crea items reales en el feed. El backend asigna formato y categorias
-						automaticamente.
-					</p>
-				</div>
-
-				<textarea
-					value={entryDraft}
-					onChange={(event) => {
-						setEntryDraft(event.target.value);
+				<EntryInputFields
+					entryInputMode={entryInputMode}
+					entryDraft={entryDraft}
+					audioFile={audioFile}
+					audioInputRef={audioInputRef}
+					onEntryDraftChange={(value) => {
+						setEntryDraftValue(value);
 					}}
-					onKeyDown={(event) => {
-						if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-							event.preventDefault();
-							void submitEntry();
-						}
+					onManualSubmitShortcut={() => {
+						void submitManualEntry();
 					}}
-					placeholder="Escribe aqui la informacion que quieres guardar..."
-					className="w-full min-h-[220px] resize-y rounded-2xl border border-slate-300/80 bg-white/80 p-4 text-sm leading-relaxed text-slate-900 dark:text-slate-100 dark:bg-slate-900/70 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500"
+					onAudioFileChange={handleAudioFileChange}
 				/>
 
-				<div className="grid grid-cols-2 gap-2 pt-1">
-					<Button
-						type="button"
-						variant="outline"
-						onClick={clearEntryComposer}
-						disabled={!hasEntryFormValues || createItemMutation.isPending}
-					>
-						<Eraser className="size-3.5" />
-						Limpiar
-					</Button>
-					<Button
-						type="button"
-						onClick={() => {
-							void submitEntry();
-						}}
-						disabled={!canSaveEntry}
-						className="bg-amber-600 hover:bg-amber-700 text-white"
-					>
-						{createItemMutation.isPending ? (
-							<Loader2 className="size-3.5 animate-spin" />
-						) : (
-							<Send className="size-3.5" />
-						)}
-						{createItemMutation.isPending ? "Guardando..." : "Guardar item"}
-					</Button>
-				</div>
-
-				<p className="text-[11px] text-slate-500 dark:text-slate-400">
-					Tip: usa Ctrl/Cmd + Enter para guardar mas rapido.
-				</p>
+				<EntryActions
+					entryInputMode={entryInputMode}
+					isSubmitting={isSubmitting}
+					canSaveEntry={canSaveEntry}
+					hasEntryFormValues={hasEntryFormValues}
+					onClear={clearActiveInput}
+					onSubmit={submitActiveEntry}
+				/>
 			</div>
 		</div>
 	);

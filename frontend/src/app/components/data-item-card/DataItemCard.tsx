@@ -1,8 +1,5 @@
 import { useMotionPreferences } from "@/app/motion/useMotionPreferences";
-import {
-	buildYouTubeEmbedUrl,
-	classifyLinkTarget,
-} from "@/app/utils/link-classifier";
+import { resolveDataItemCardVariant } from "./cardVariant";
 import { EventCard } from "./EventCard";
 import { LinkCard } from "./LinkCard";
 import { SpotifyCard } from "./SpotifyCard";
@@ -12,31 +9,27 @@ import { YouTubeCard } from "./YouTubeCard";
 
 export function DataItemCard({ item }: DataItemCardProps) {
 	const { prefersReducedMotion } = useMotionPreferences();
+	const { variant } = resolveDataItemCardVariant(item);
 
-	if (item.formato === "evento") {
+	if (variant === "event") {
 		return (
 			<EventCard item={item} prefersReducedMotion={prefersReducedMotion} />
 		);
 	}
 
-	if (item.formato === "link") {
-		const linkKind = classifyLinkTarget(item.texto).kind;
-		if (linkKind === "spotify") {
-			return (
-				<SpotifyCard item={item} prefersReducedMotion={prefersReducedMotion} />
-			);
-		}
+	if (variant === "spotify") {
+		return (
+			<SpotifyCard item={item} prefersReducedMotion={prefersReducedMotion} />
+		);
+	}
 
-		const isYouTubeFamilyLink =
-			linkKind === "youtube_playlist" ||
-			((linkKind === "video" || linkKind === "reel") &&
-				Boolean(buildYouTubeEmbedUrl(item.texto)));
-		if (isYouTubeFamilyLink) {
-			return (
-				<YouTubeCard item={item} prefersReducedMotion={prefersReducedMotion} />
-			);
-		}
+	if (variant === "youtube") {
+		return (
+			<YouTubeCard item={item} prefersReducedMotion={prefersReducedMotion} />
+		);
+	}
 
+	if (variant === "link") {
 		return <LinkCard item={item} prefersReducedMotion={prefersReducedMotion} />;
 	}
 

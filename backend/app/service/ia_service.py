@@ -90,7 +90,7 @@ async def process_audio_to_text_and_ai(file_path: str, db: Session):
     try:
         from app.service.ia_service import client
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="models/gemma-3-27b-it",
             contents=prompt
         )
 

@@ -11,6 +11,7 @@ const DEFAULT_PAGE_LIMIT = 12;
 export interface ItemsPageParams {
 	skip?: number;
 	limit?: number;
+	q?: string;
 	name?: string;
 	format?: string;
 	hasCategories?: boolean;
@@ -71,12 +72,17 @@ function normalizeFormat(item: BackendItemResponse): DataItem["formato"] {
 
 export function mapBackendItem(item: BackendItemResponse): DataItem {
 	const categories = item.categories ?? [];
+	const categoryDescriptions = categories
+		.map((category) => category.description?.trim() ?? "")
+		.filter((description): description is string => description.length > 0);
 
 	return {
 		id: item.id,
 		texto: item.name,
 		description: item.description ?? undefined,
 		tags: categories.map((category) => category.name).filter(Boolean),
+		categoryDescriptions:
+			categoryDescriptions.length > 0 ? categoryDescriptions : undefined,
 		formato: normalizeFormat(item),
 		fecha: item.created_at ?? item.updated_at ?? new Date().toISOString(),
 	};
@@ -144,6 +150,11 @@ export async function getItemsPage(
 		query.set("name", params.name);
 	}
 
+	const queryText = (params.q ?? params.name ?? "").trim();
+	if (queryText) {
+		query.set("q", queryText);
+	}
+
 	if (params.format) {
 		query.set("format", params.format);
 	}
@@ -177,6 +188,18 @@ export async function createItem(
 			"Content-Type": "application/json",
 		},
 		body: JSON.stringify(toCreateBody(payload)),
+	});
+
+	return mapBackendItem(created);
+}
+
+export async function createItemFromAudio(file: File): Promise<DataItem> {
+	const formData = new FormData();
+	formData.append("file", file, file.name);
+
+	const created = await appFetch<BackendItemResponse>("/items/from-audio", {
+		method: "POST",
+		body: formData,
 	});
 
 	return mapBackendItem(created);

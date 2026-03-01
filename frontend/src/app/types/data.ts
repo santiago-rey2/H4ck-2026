@@ -1,8 +1,11 @@
+export type DataItemFormat = "dato" | "nota" | "link" | "evento";
+
 export interface DataItem {
 	id: number;
 	texto: string;
 	tags: string[];
-	formato: string;
+	categoryDescriptions?: string[];
+	formato: DataItemFormat;
 	fecha: string;
 	// Campos opcionales para links
 	title?: string;

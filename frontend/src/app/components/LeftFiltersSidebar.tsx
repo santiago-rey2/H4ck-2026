@@ -9,11 +9,12 @@ import {
 } from "@/app/atoms";
 import { useCategories } from "@/app/hooks/useCategories";
 import { useDataItems } from "@/app/hooks/useDataItems";
+import type { DataItemFormat } from "@/app/types/data";
 import { getFormatCounts, getTagCounts } from "@/app/utils/data-filters";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
-const FORMAT_OPTIONS = [
+const FORMAT_OPTIONS: Array<{ value: DataItemFormat; label: string }> = [
 	{ value: "dato", label: "Datos" },
 	{ value: "nota", label: "Notas" },
 	{ value: "link", label: "Links" },
@@ -29,9 +30,9 @@ export function LeftFiltersSidebar({
 	className,
 	surface = "default",
 }: LeftFiltersSidebarProps) {
+	const [searchQuery, setSearchQuery] = useAtom(dataSearchQueryAtom);
 	const { data, isLoading, hasMore } = useDataItems();
 	const { data: categories, isLoading: isCategoriesLoading } = useCategories();
-	const [searchQuery, setSearchQuery] = useAtom(dataSearchQueryAtom);
 	const [selectedFormats, setSelectedFormats] = useAtom(selectedFormatsAtom);
 	const [selectedTags, setSelectedTags] = useAtom(selectedTagsAtom);
 	const clearFilters = useSetAtom(clearDataFiltersAtom);
@@ -74,7 +75,7 @@ export function LeftFiltersSidebar({
 		selectedTags.length +
 		(searchQuery.trim().length > 0 ? 1 : 0);
 
-	const toggleFormat = (format: string) => {
+	const toggleFormat = (format: DataItemFormat) => {
 		setSelectedFormats((currentFormats) =>
 			currentFormats.includes(format)
 				? currentFormats.filter((current) => current !== format)

@@ -21,6 +21,4 @@ export const categoriesKeys = {
 	all: ["categories"] as const,
 	list: (params: CategoriesKeyParams) =>
 		["categories", "list", params] as const,
-	detail: (categoryId: number) => ["categories", "detail", categoryId] as const,
-	items: (categoryId: number) => ["categories", "items", categoryId] as const,
 };

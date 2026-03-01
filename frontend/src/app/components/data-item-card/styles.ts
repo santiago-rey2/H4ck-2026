@@ -8,10 +8,11 @@ import {
 	Music2,
 	Play,
 } from "lucide-react";
+import type { DataItemFormat } from "@/app/types/data";
 import type { LinkCardKind } from "@/app/utils/link-types";
 import type { CardStyleTokens } from "./types";
 
-type SupportedFormat = "dato" | "nota" | "evento" | "link";
+type SupportedFormat = DataItemFormat;
 
 export const LINK_SOURCE_LABELS = {
 	extruct: "OG",
@@ -131,10 +132,6 @@ const FORMAT_STYLES: Record<SupportedFormat, CardStyleTokens> = {
 	link: LINK_KIND_STYLES.web,
 };
 
-export function getBaseStyleForItem(format: string): CardStyleTokens {
-	if (format in FORMAT_STYLES) {
-		return FORMAT_STYLES[format as SupportedFormat];
-	}
-
-	return FORMAT_STYLES.dato;
+export function getBaseStyleForItem(format: SupportedFormat): CardStyleTokens {
+	return FORMAT_STYLES[format];
 }

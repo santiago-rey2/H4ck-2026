@@ -1,11 +1,8 @@
 import { motion, type Variants } from "motion/react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { isWideDataItemCard } from "@/app/components/data-item-card/cardVariant";
 import { MOTION_DURATION, MOTION_EASE } from "@/app/motion/tokens";
 import type { DataItem } from "@/app/types/data";
-import {
-	buildYouTubeEmbedUrl,
-	classifyLinkTarget,
-} from "@/app/utils/link-classifier";
 import { DataItemCard } from "../DataItemCard";
 
 export const MASONRY_ROW_HEIGHT_PX = 8;
@@ -27,18 +24,7 @@ export function MasonryCardItem({
 	const [rowSpan, setRowSpan] = useState(1);
 	const contentRef = useRef<HTMLDivElement | null>(null);
 	const frameRef = useRef<number | null>(null);
-	const linkKind =
-		item.formato === "link" ? classifyLinkTarget(item.texto).kind : null;
-	const isYouTubeReel =
-		linkKind === "reel" && Boolean(buildYouTubeEmbedUrl(item.texto));
-	const isWideCard =
-		item.formato === "nota" ||
-		item.formato === "evento" ||
-		linkKind === "video" ||
-		linkKind === "location" ||
-		linkKind === "spotify" ||
-		linkKind === "youtube_playlist" ||
-		isYouTubeReel;
+	const isWideCard = isWideDataItemCard(item);
 
 	const measureRowSpan = useCallback(() => {
 		const contentNode = contentRef.current;

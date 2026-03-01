@@ -1,9 +1,9 @@
-import type { DataItem } from "@/app/types/data";
+import type { DataItem, DataItemFormat } from "@/app/types/data";
 import { normalizeLinkTarget } from "@/app/utils/link-classifier";
 
 export interface DataFilters {
 	searchQuery: string;
-	selectedFormats: string[];
+	selectedFormats: DataItemFormat[];
 	selectedTags: string[];
 }
 
@@ -20,7 +20,7 @@ const SEARCH_FIELDS: Array<
 	keyof Pick<DataItem, "texto" | "title" | "description">
 > = ["texto", "title", "description"];
 
-const FORMAT_SEARCH_ALIASES: Record<string, string[]> = {
+const FORMAT_SEARCH_ALIASES: Record<DataItemFormat, string[]> = {
 	dato: ["dato", "datos", "short text", "short_text", "texto corto"],
 	nota: ["nota", "notas", "long text", "long_text", "texto largo"],
 	link: ["link", "links", "enlace", "enlaces", "url", "urls"],
@@ -199,8 +199,10 @@ export function getTagCounts(items: DataItem[]): TagCount[] {
 		});
 }
 
-export function getFormatCounts(items: DataItem[]): Record<string, number> {
-	const counts: Record<string, number> = {};
+export function getFormatCounts(
+	items: DataItem[],
+): Partial<Record<DataItemFormat, number>> {
+	const counts: Partial<Record<DataItemFormat, number>> = {};
 
 	for (const item of items) {
 		counts[item.formato] = (counts[item.formato] ?? 0) + 1;
@@ -214,7 +216,7 @@ export function interleaveItemsByFormat(items: DataItem[]): DataItem[] {
 		return items;
 	}
 
-	const groupedItems = new Map<string, DataItem[]>();
+	const groupedItems = new Map<DataItemFormat, DataItem[]>();
 	for (const item of items) {
 		const bucket = groupedItems.get(item.formato);
 		if (bucket) {
@@ -231,7 +233,7 @@ export function interleaveItemsByFormat(items: DataItem[]): DataItem[] {
 
 	const formatOrder = [...groupedItems.keys()];
 
-	const cursors = new Map<string, number>();
+	const cursors = new Map<DataItemFormat, number>();
 	for (const format of formatOrder) {
 		cursors.set(format, 0);
 	}

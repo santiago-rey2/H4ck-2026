@@ -8,7 +8,7 @@ import {
 	Music2,
 	Play,
 } from "lucide-react";
-import type { LinkCardKind } from "@/app/utils/link-classifier";
+import type { LinkCardKind } from "@/app/utils/link-types";
 import type { CardStyleTokens } from "./types";
 
 type SupportedFormat = "dato" | "nota" | "evento" | "link";
